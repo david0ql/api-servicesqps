@@ -430,6 +430,13 @@ export class ReportsService {
         };
       });
 
+      // Calcular totales para este cleaner
+      const totalCommission = servicesDashboard.reduce((acc, service) => acc + Number(service.type?.commission ?? 0), 0);
+      const totalExtras = servicesDashboard.reduce((acc, service) => 
+        acc + (service.extrasByServices?.reduce((sum, extraByService) => 
+          sum + Number(extraByService?.extra?.commission ?? 0), 0) ?? 0), 0);
+      const totalCleanerAmount = servicesDashboard.reduce((acc, service) => acc + Number(service.totalCleaner ?? 0), 0);
+
       const tableBody = [
         ['Date', 'Community', 'Unit number', 'Type', 'Commission', 'Extras', 'Total'],
         ...servicesDashboard.map(service => [
@@ -441,6 +448,20 @@ export class ReportsService {
           formatCurrency(service.extrasByServices?.reduce((acc, extraByService) => acc + Number(extraByService?.extra?.commission ?? 0), 0) ?? 0),
           formatCurrency(Number(service.totalCleaner ?? 0)),
         ]),
+        // Fila de totales
+        [
+          '',
+          '',
+          'Total: ',
+          '',
+          formatCurrency(totalCommission),
+          formatCurrency(totalExtras),
+          formatCurrency(totalCleanerAmount)
+        ].map(cell => ({
+          text: cell,
+          fillColor: '#acb3c1',
+          color: '#000000'
+        }))
       ];
 
       content.push(
