@@ -300,13 +300,14 @@ export class ServicesService {
 
     // Obtener el usuario que está creando el servicio
     const creatingUser = await this.usersRepository.findOne({
-      where: { id: createServiceDto.userId }
+      where: { id: createServiceDto.userId },
+      select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
     });
 
     // Obtener super admins
     const superAdmins = await this.usersRepository.find({
       where: { roleId: '1' },
-      select: ['id', 'token', 'phoneNumber', 'name'],
+      select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
     });
 
     // Obtener manager y supervisor de la comunidad
@@ -327,19 +328,45 @@ export class ServicesService {
       ...communityUsers
     ].filter(Boolean);
 
+    // Filtrar usuarios según el status y su rol (para creación, status es 1 - Created)
+    const filteredUsers = allUsers.filter(user => {
+      const statusId = fullService.status?.id; // Status 1 - Created
+      const userRoleId = user?.roleId;
+
+      // Si el status es 1 (Created), 2 (Pending) o 5 (Completed), todos los usuarios reciben notificación
+      if (statusId === '1' || statusId === '2' || statusId === '5') {
+        return true;
+      }
+
+      // Para otros status (3, 4, 6), managers (roleId: '3') y supervisores (roleId: '6') NO reciben notificación
+      if (userRoleId === '3' || userRoleId === '6') {
+        return false;
+      }
+
+      // Para otros roles, reciben notificación para todos los status
+      return true;
+    });
+
     // Separar usuarios con token y teléfono
-    const usersWithToken = allUsers
+    const usersWithToken = filteredUsers
       .filter(user => user?.token && user.token.trim() !== '')
       .filter((user, index, self) => 
         self.findIndex(u => u.token === user.token) === index
       );
 
-    const usersWithPhone = allUsers
+    const usersWithPhone = filteredUsers
       .filter(user => user?.phoneNumber && user.phoneNumber.trim() !== '')
       .filter((user, index, self) => 
         self.findIndex(u => u.phoneNumber === user.phoneNumber) === index
       );
 
+    console.log('Filtered users by role and status (create):', filteredUsers.map(u => ({ 
+      id: u.id, 
+      name: u.name, 
+      roleId: u.roleId, 
+      token: u.token ? 'has_token' : 'no_token',
+      phone: u.phoneNumber ? 'has_phone' : 'no_phone'
+    })));
     console.log('Users with token:', usersWithToken);
     console.log('Users with phone:', usersWithPhone);
 
@@ -366,7 +393,6 @@ export class ServicesService {
       extras,
     };
   }
-
 
   async update(id: string, updateServiceDto: UpdateServiceDto) {
     const service = await this.servicesRepository.preload({
@@ -473,7 +499,7 @@ export class ServicesService {
   ) {
     const superAdmins = await this.usersRepository.find({
       where: { roleId: '1' },
-      select: ['id', 'token', 'phoneNumber'],
+      select: ['id', 'token', 'phoneNumber', 'roleId'],
     });
 
     const communities = await this.communitiesRepository.find({
@@ -495,7 +521,7 @@ export class ServicesService {
     if (service.user?.id) {
       serviceUser = await this.usersRepository.findOne({
         where: { id: service.user.id },
-        select: ['id', 'token', 'phoneNumber'],
+        select: ['id', 'token', 'phoneNumber', 'roleId'],
       });
     }
 
@@ -506,22 +532,48 @@ export class ServicesService {
       ...fullCommunityUsers,
     ];
 
+    // Filtrar usuarios según el status y su rol
+    const filteredUsers = allUsers.filter(user => {
+      const statusId = service.status?.id;
+      const userRoleId = user?.roleId;
+
+      // Si el status es 1 (Created), 2 (Pending) o 5 (Completed), todos los usuarios reciben notificación
+      if (statusId === '1' || statusId === '2' || statusId === '5') {
+        return true;
+      }
+
+      // Para otros status (3, 4, 6), managers (roleId: '3') y supervisores (roleId: '6') NO reciben notificación
+      if (userRoleId === '3' || userRoleId === '6') {
+        return false;
+      }
+
+      // Para otros roles, reciben notificación para todos los status
+      return true;
+    });
+
     // Usuarios con token válido para push notifications
-    const usersWithToken = allUsers
+    const usersWithToken = filteredUsers
       .filter(user => user?.token && user.token.trim() !== '')
       .filter((user, index, self) => 
         self.findIndex(u => u.token === user.token) === index
       );
 
     // Usuarios con número de teléfono para SMS
-    const usersWithPhone = allUsers
+    const usersWithPhone = filteredUsers
       .filter(user => user?.phoneNumber && user.phoneNumber.trim() !== '')
       .filter((user, index, self) => 
         self.findIndex(u => u.phoneNumber === user.phoneNumber) === index
       );
 
-    console.log('Users with token:', usersWithToken.map(u => ({ id: u.id, name: u.name, token: u.token })));
-    console.log('Users with phone:', usersWithPhone.map(u => ({ id: u.id, name: u.name, phone: u.phoneNumber })));
+    console.log('Filtered users by role and status:', filteredUsers.map(u => ({ 
+      id: u.id, 
+      name: u.name, 
+      roleId: u.roleId, 
+      token: u.token ? 'has_token' : 'no_token',
+      phone: u.phoneNumber ? 'has_phone' : 'no_phone'
+    })));
+    console.log('Users with token:', usersWithToken.map(u => ({ id: u.id, name: u.name, roleId: u.roleId, token: u.token })));
+    console.log('Users with phone:', usersWithPhone.map(u => ({ id: u.id, name: u.name, roleId: u.roleId, phone: u.phoneNumber })));
 
     const uniqueTokens = usersWithToken.map(u => u.token);
 
