@@ -1,7 +1,7 @@
 import { InjectRepository } from '@nestjs/typeorm';
 import { Injectable } from '@nestjs/common';
 import { Repository, Between } from 'typeorm';
-import * as moment from 'moment';
+import moment from 'moment';
 import { ServicesEntity } from '../../entities/services.entity';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 import { ReviewItemsEntity } from '../../entities/review_items.entity';
