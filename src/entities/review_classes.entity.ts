@@ -1,5 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
-import { OneToManyNoAction } from "../decorators/relations.decorator";
+import { Column, Entity, PrimaryGeneratedColumn, OneToMany } from "typeorm";
 
 @Entity("review_classes", { schema: "services_dbqa" })
 export class ReviewClassesEntity {
@@ -21,6 +20,6 @@ export class ReviewClassesEntity {
   })
   updatedAt: Date;
 
-  @OneToManyNoAction(() => () => import("./review_items.entity").then(m => m.ReviewItemsEntity), (reviewItemsEntity: any) => reviewItemsEntity.reviewClass)
+  @OneToMany(() => () => import("./review_items.entity").then(m => m.ReviewItemsEntity), (reviewItemsEntity: any) => reviewItemsEntity.reviewClass)
   reviewItems: any[];
 } 

@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from "typeorm";
 import { ReviewClassesEntity } from "./review_classes.entity";
-import { ManyToOneNoAction, OneToManyNoAction } from "../decorators/relations.decorator";
+import { ManyToOne, OneToMany } from "typeorm";
 
 @Index("review_class_id", ["reviewClassId"], {})
 @Entity("review_items", { schema: "services_dbqa" })
@@ -32,10 +32,10 @@ export class ReviewItemsEntity {
   })
   updatedAt: Date;
 
-  @ManyToOneNoAction(() => ReviewClassesEntity, (reviewClassesEntity) => reviewClassesEntity.reviewItems)
+  @ManyToOne(() => ReviewClassesEntity, (reviewClassesEntity) => reviewClassesEntity.reviewItems)
   @JoinColumn([{ name: "review_class_id", referencedColumnName: "id" }])
   reviewClass: ReviewClassesEntity;
 
-  @OneToManyNoAction(() => () => import("./reviews_by_service.entity").then(m => m.ReviewsByServiceEntity), (reviewsByServiceEntity: any) => reviewsByServiceEntity.reviewItem)
+  @OneToMany(() => () => import("./reviews_by_service.entity").then(m => m.ReviewsByServiceEntity), (reviewsByServiceEntity: any) => reviewsByServiceEntity.reviewItem)
   reviewsByServices: any[];
 } 

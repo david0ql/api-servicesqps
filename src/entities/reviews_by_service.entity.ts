@@ -7,7 +7,7 @@ import {
 } from "typeorm";
 import { ServicesEntity } from "./services.entity";
 import { ReviewItemsEntity } from "./review_items.entity";
-import { ManyToOneNoAction } from "../decorators/relations.decorator";
+import { ManyToOne } from "typeorm";
 
 @Index("service_id", ["serviceId"], {})
 @Index("review_item_id", ["reviewItemId"], {})
@@ -37,11 +37,11 @@ export class ReviewsByServiceEntity {
   })
   updatedAt: Date;
 
-  @ManyToOneNoAction(() => ServicesEntity, (servicesEntity) => servicesEntity.reviewsByServices)
+  @ManyToOne(() => ServicesEntity, (servicesEntity) => servicesEntity.reviewsByServices)
   @JoinColumn([{ name: "service_id", referencedColumnName: "id" }])
   service: ServicesEntity;
 
-  @ManyToOneNoAction(() => ReviewItemsEntity, (reviewItemsEntity) => reviewItemsEntity.reviewsByServices)
+  @ManyToOne(() => ReviewItemsEntity, (reviewItemsEntity) => reviewItemsEntity.reviewsByServices)
   @JoinColumn([{ name: "review_item_id", referencedColumnName: "id" }])
   reviewItem: ReviewItemsEntity;
 } 
