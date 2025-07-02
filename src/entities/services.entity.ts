@@ -11,7 +11,7 @@ import { StatusesEntity } from "./statuses.entity";
 import { CommunitiesEntity } from "./communities.entity";
 import { UsersEntity } from "./users.entity";
 import { TypesEntity } from "./types.entity";
-import { ManyToOneNoAction, OneToManyNoAction } from "../decorators/relations.decorator";
+import { ManyToOne, OneToMany } from "typeorm";
 
 @Index("community_id", ["communityId"], {})
 @Index("status_id", ["statusId"], {})
@@ -64,31 +64,31 @@ export class ServicesEntity {
   })
   updatedAt: Date;
 
-  @OneToManyNoAction(
+  @OneToMany(
     () => ExtrasByServiceEntity,
     (extrasByServiceEntity) => extrasByServiceEntity.service
   )
   extrasByServices: ExtrasByServiceEntity[];
 
-  @OneToManyNoAction(
+  @OneToMany(
     () => ReviewsByServiceEntity,
     (reviewsByServiceEntity) => reviewsByServiceEntity.service
   )
   reviewsByServices: ReviewsByServiceEntity[];
 
-  @ManyToOneNoAction(() => StatusesEntity, (statusesEntity) => statusesEntity.services)
+  @ManyToOne(() => StatusesEntity, (statusesEntity) => statusesEntity.services)
   @JoinColumn([{ name: "status_id", referencedColumnName: "id" }])
   status: StatusesEntity | null;
 
-  @ManyToOneNoAction(() => CommunitiesEntity, (communitiesEntity) => communitiesEntity.services)
+  @ManyToOne(() => CommunitiesEntity, (communitiesEntity) => communitiesEntity.services)
   @JoinColumn([{ name: "community_id", referencedColumnName: "id" }])
   community: CommunitiesEntity | null;
 
-  @ManyToOneNoAction(() => UsersEntity, (usersEntity) => usersEntity.services)
+  @ManyToOne(() => UsersEntity, (usersEntity) => usersEntity.services)
   @JoinColumn([{ name: "user_id", referencedColumnName: "id" }])
   user: UsersEntity | null;
 
-  @ManyToOneNoAction(() => TypesEntity, (typesEntity) => typesEntity.services)
+  @ManyToOne(() => TypesEntity, (typesEntity) => typesEntity.services)
   @JoinColumn([{ name: "type_id", referencedColumnName: "id" }])
   type: TypesEntity | null;
 }
