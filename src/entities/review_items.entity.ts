@@ -5,7 +5,6 @@ import {
   JoinColumn,
   PrimaryGeneratedColumn,
 } from "typeorm";
-import { ReviewClassesEntity } from "./review_classes.entity";
 import { ManyToOne, OneToMany } from "typeorm";
 
 @Index("review_class_id", ["reviewClassId"], {})
@@ -32,10 +31,10 @@ export class ReviewItemsEntity {
   })
   updatedAt: Date;
 
-  @ManyToOne(() => ReviewClassesEntity, (reviewClassesEntity) => reviewClassesEntity.reviewItems)
+  @ManyToOne('ReviewClassesEntity', 'reviewItems')
   @JoinColumn([{ name: "review_class_id", referencedColumnName: "id" }])
-  reviewClass: ReviewClassesEntity;
+  reviewClass: any;
 
-  @OneToMany(() => () => import("./reviews_by_service.entity").then(m => m.ReviewsByServiceEntity), (reviewsByServiceEntity: any) => reviewsByServiceEntity.reviewItem)
+  @OneToMany('ReviewsByServiceEntity', 'reviewItem')
   reviewsByServices: any[];
 } 

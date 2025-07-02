@@ -20,6 +20,6 @@ export class ReviewClassesEntity {
   })
   updatedAt: Date;
 
-  @OneToMany(() => () => import("./review_items.entity").then(m => m.ReviewItemsEntity), (reviewItemsEntity: any) => reviewItemsEntity.reviewClass)
+  @OneToMany('ReviewItemsEntity', 'reviewClass')
   reviewItems: any[];
 } 

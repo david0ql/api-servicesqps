@@ -70,11 +70,8 @@ export class ServicesEntity {
   )
   extrasByServices: ExtrasByServiceEntity[];
 
-  @OneToMany(
-    () => ReviewsByServiceEntity,
-    (reviewsByServiceEntity) => reviewsByServiceEntity.service
-  )
-  reviewsByServices: ReviewsByServiceEntity[];
+  @OneToMany('ReviewsByServiceEntity', 'service')
+  reviewsByServices: any[];
 
   @ManyToOne(() => StatusesEntity, (statusesEntity) => statusesEntity.services)
   @JoinColumn([{ name: "status_id", referencedColumnName: "id" }])
