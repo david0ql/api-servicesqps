@@ -14,6 +14,7 @@ import { AuthModule } from './api/auth/auth.module';
 import { ReportsModule } from './api/reports/reports.module';
 import { PrinterModule } from './printer/printer.module';
 import { PermissionsModule } from './api/permissions/permissions.module';
+import { ReviewsModule } from './api/reviews/reviews.module';
 
 import envVars from './config/env';
 import { TwilioModule } from 'nestjs-twilio';
@@ -45,6 +46,7 @@ import { TwilioModule } from 'nestjs-twilio';
     ReportsModule,
     PrinterModule,
     PermissionsModule,
+    ReviewsModule,
   ],
   controllers: [],
   providers: [],

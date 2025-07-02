@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from "typeorm";
 import { ExtrasByServiceEntity } from "./extras_by_service.entity";
+import { ReviewsByServiceEntity } from "./reviews_by_service.entity";
 import { StatusesEntity } from "./statuses.entity";
 import { CommunitiesEntity } from "./communities.entity";
 import { UsersEntity } from "./users.entity";
@@ -68,6 +69,12 @@ export class ServicesEntity {
     (extrasByServiceEntity) => extrasByServiceEntity.service
   )
   extrasByServices: ExtrasByServiceEntity[];
+
+  @OneToManyNoAction(
+    () => ReviewsByServiceEntity,
+    (reviewsByServiceEntity) => reviewsByServiceEntity.service
+  )
+  reviewsByServices: ReviewsByServiceEntity[];
 
   @ManyToOneNoAction(() => StatusesEntity, (statusesEntity) => statusesEntity.services)
   @JoinColumn([{ name: "status_id", referencedColumnName: "id" }])
