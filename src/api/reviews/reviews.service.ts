@@ -66,15 +66,34 @@ export class ReviewsService {
       throw new NotFoundException(`Service with ID ${createServiceReviewDto.serviceId} not found`);
     }
 
-    const reviewRecords = createServiceReviewDto.reviewItems.map(item => 
-      this.reviewsByServiceRepository.create({
-        serviceId: createServiceReviewDto.serviceId,
-        reviewItemId: item.reviewItemId,
-        value: item.value ? 1 : 0
-      })
-    );
+    // Process each review item (insert or update)
+    const savedReviews = [];
+    
+    for (const item of createServiceReviewDto.reviewItems) {
+      // Check if review already exists
+      const existingReview = await this.reviewsByServiceRepository.findOne({
+        where: {
+          serviceId: createServiceReviewDto.serviceId,
+          reviewItemId: item.reviewItemId
+        }
+      });
 
-    const savedReviews = await this.reviewsByServiceRepository.save(reviewRecords);
+      if (existingReview) {
+        // Update existing review
+        existingReview.value = item.value ? 1 : 0;
+        const updatedReview = await this.reviewsByServiceRepository.save(existingReview);
+        savedReviews.push(updatedReview);
+      } else {
+        // Create new review
+        const newReview = this.reviewsByServiceRepository.create({
+          serviceId: createServiceReviewDto.serviceId,
+          reviewItemId: item.reviewItemId,
+          value: item.value ? 1 : 0
+        });
+        const createdReview = await this.reviewsByServiceRepository.save(newReview);
+        savedReviews.push(createdReview);
+      }
+    }
 
     const hasFailedItems = savedReviews.some(review => review.value === 0);
 
