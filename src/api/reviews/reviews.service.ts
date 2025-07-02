@@ -85,6 +85,11 @@ export class ReviewsService {
       });
 
       await this.notifyServiceRefresh(service);
+    } else {
+      await this.servicesRepository.update(createServiceReviewDto.serviceId, {
+        statusId: '6',
+        comment: createServiceReviewDto.message || 'Service approved'
+      });
     }
 
     return savedReviews;
