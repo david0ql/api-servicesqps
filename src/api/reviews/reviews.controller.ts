@@ -2,7 +2,7 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
-import { ReviewItemsWithClassDto } from './dto/review-items-with-class.dto';
+import { ReviewItemsGroupedByClassDto } from './dto/review-items-with-class.dto';
 import { ReviewsService } from './reviews.service';
 
 @ApiBearerAuth()
@@ -13,7 +13,7 @@ export class ReviewsController {
 
   @Get('/items-with-classes')
   @UseGuards(AuthGuard('jwt'))
-  async getReviewItemsWithClasses(): Promise<ReviewItemsWithClassDto[]> {
+  async getReviewItemsWithClasses(): Promise<ReviewItemsGroupedByClassDto[]> {
     return this.reviewsService.getReviewItemsWithClasses();
   }
 } 
