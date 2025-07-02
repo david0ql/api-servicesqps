@@ -5,8 +5,10 @@ import { Repository } from 'typeorm';
 import { ReviewItemsEntity } from '../../entities/review_items.entity';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 import { ServicesEntity } from '../../entities/services.entity';
+import { UsersEntity } from '../../entities/users.entity';
 import { ReviewItemsGroupedByClassDto, ReviewItemDto } from './dto/review-items-with-class.dto';
 import { CreateServiceReviewDto } from './dto/create-service-review.dto';
+import { PushNotificationsService } from '../../push-notification/push-notification.service';
 
 @Injectable()
 export class ReviewsService {
@@ -17,6 +19,9 @@ export class ReviewsService {
     private readonly reviewsByServiceRepository: Repository<ReviewsByServiceEntity>,
     @InjectRepository(ServicesEntity)
     private readonly servicesRepository: Repository<ServicesEntity>,
+    @InjectRepository(UsersEntity)
+    private readonly usersRepository: Repository<UsersEntity>,
+    private readonly pushNotificationsService: PushNotificationsService,
   ) {}
 
   async getReviewItemsWithClasses(): Promise<ReviewItemsGroupedByClassDto[]> {
@@ -53,7 +58,8 @@ export class ReviewsService {
 
   async createServiceReview(createServiceReviewDto: CreateServiceReviewDto) {
     const service = await this.servicesRepository.findOne({
-      where: { id: createServiceReviewDto.serviceId }
+      where: { id: createServiceReviewDto.serviceId },
+      relations: ['community', 'user', 'status']
     });
 
     if (!service) {
@@ -70,6 +76,72 @@ export class ReviewsService {
 
     const savedReviews = await this.reviewsByServiceRepository.save(reviewRecords);
 
+    const hasFailedItems = savedReviews.some(review => review.value === 0);
+
+    if (hasFailedItems) {
+      await this.servicesRepository.update(createServiceReviewDto.serviceId, {
+        statusId: '3',
+        comment: createServiceReviewDto.message || 'Service needs refresh due to failed review items'
+      });
+
+      await this.notifyServiceRefresh(service);
+    }
+
     return savedReviews;
+  }
+
+  private async notifyServiceRefresh(service: ServicesEntity) {
+    const superAdmins = await this.usersRepository.find({
+      where: { roleId: '1' },
+      select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
+    });
+
+    const qaUsers = await this.usersRepository.find({
+      where: { roleId: '7' },
+      select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
+    });
+
+    let serviceCleaner = null;
+    if (service.user?.id) {
+      serviceCleaner = await this.usersRepository.findOne({
+        where: { id: service.user.id },
+        select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
+      });
+    }
+
+    const allUsers = [
+      ...superAdmins,
+      ...qaUsers,
+      ...(serviceCleaner ? [serviceCleaner] : [])
+    ].filter(Boolean);
+
+    const usersWithToken = allUsers
+      .filter(user => user?.token && user.token.trim() !== '')
+      .filter((user, index, self) => 
+        self.findIndex(u => u.token === user.token) === index
+      );
+
+    const usersWithPhone = allUsers
+      .filter(user => user?.phoneNumber && user.phoneNumber.trim() !== '')
+      .filter((user, index, self) => 
+        self.findIndex(u => u.phoneNumber === user.phoneNumber) === index
+      );
+
+    const notification = {
+      body: `Service in ${service.community?.communityName ?? 'Unknown Community'} needs refresh. Review items failed.`,
+      title: 'Service Needs Refresh',
+      data: {
+        serviceId: service.id,
+        serviceType: service.type,
+        serviceDate: service.date,
+        serviceStatus: service.status,
+      },
+      tokensNotification: {
+        tokens: usersWithToken.map(user => user.token),
+        users: usersWithPhone
+      }
+    };
+
+    await this.pushNotificationsService.sendNotification(notification);
   }
 } 
