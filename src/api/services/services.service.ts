@@ -371,7 +371,7 @@ export class ServicesService {
     console.log('Users with phone:', usersWithPhone);
 
     const notification = {
-      body: `New service created for ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('DD/MM/YYYY')} in apartment number ${fullService.unitNumber}`,
+      body: `New service created for ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')} in apartment number ${fullService.unitNumber}`,
       title: 'New Service Created',
       data: {
         serviceId: service.id,
@@ -441,10 +441,10 @@ export class ServicesService {
     }
   
     const statusMessages: Record<string, string> = {
-      '2': `You have a new service for ${moment(fullService.date).format('DD/MM/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
-      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment(fullService.date).format('DD/MM/YYYY')}`,
-      '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('DD/MM/YYYY')}`,
-      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('DD/MM/YYYY')}`,
+      '2': `You have a new service for ${moment(fullService.date).format('MM/DD/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
+      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment(fullService.date).format('MM/DD/YYYY')}`,
+      '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')}`,
+      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')}`,
     };
   
     const statusMessage = statusMessages[fullService.status?.id];
