@@ -611,6 +611,23 @@ export class ReportsService {
 
     const services = await queryBuilder.getMany();
 
+    // Agrupar servicios por tipo
+    const servicesByType = new Map<string, ServicesEntity[]>();
+    services.forEach(service => {
+      const typeKey = service.type 
+        ? `${service.type.cleaningType} (${service.type.description})`
+        : "Sin Tipo";
+      if (!servicesByType.has(typeKey)) {
+        servicesByType.set(typeKey, []);
+      }
+      servicesByType.get(typeKey).push(service);
+    });
+
+    // Ordenar servicios por fecha descendente dentro de cada tipo
+    servicesByType.forEach((typeServices, typeName) => {
+      typeServices.sort((a, b) => moment(b.date).valueOf() - moment(a.date).valueOf());
+    });
+
     const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
     const tableBody = [
@@ -654,6 +671,64 @@ export class ReportsService {
       }))
     ];
 
+    // Nueva tabla agrupada por tipo de servicio
+    const typeTableBody = [
+      ['Type', 'Date', 'Unit number', 'Type Price', 'Extras', 'Total'].map(header => ({
+        text: header,
+        fillColor: '#7b90be',
+        color: '#ffffff'
+      }))
+    ];
+
+    // Agregar servicios agrupados por tipo
+    servicesByType.forEach((typeServices, typeName) => {
+      // Agregar header de tipo
+      typeTableBody.push([
+        { text: typeName, fillColor: '#e6e6e6', color: '#000000' },
+        { text: '', fillColor: '#e6e6e6', color: '#000000' },
+        { text: '', fillColor: '#e6e6e6', color: '#000000' },
+        { text: '', fillColor: '#e6e6e6', color: '#000000' },
+        { text: '', fillColor: '#e6e6e6', color: '#000000' },
+        { text: '', fillColor: '#e6e6e6', color: '#000000' }
+      ]);
+
+      // Agregar servicios de este tipo
+      typeServices.forEach(service => {
+        const isLeasingCenter = service.unitNumber?.toLowerCase() === 'leasing center';
+        const textColor = isLeasingCenter ? '#ff0000' : null;
+        
+        const typePrice = Number(service.type?.price ?? 0);
+        const extrasTotal = service.extrasByServices?.reduce((acc, extraByService) => 
+          acc + Number(extraByService?.extra?.itemPrice ?? 0), 0) ?? 0;
+        const total = typePrice + extrasTotal;
+        
+        typeTableBody.push([
+          { text: '', color: textColor, fillColor: null },
+          { text: moment(service.date).format('MM/DD/YYYY'), color: textColor, fillColor: null },
+          { text: service.unitNumber ?? 'N/A', color: textColor, fillColor: null },
+          { text: formatCurrency(typePrice), color: textColor, fillColor: null },
+          { text: formatCurrency(extrasTotal), color: textColor, fillColor: null },
+          { text: formatCurrency(total), color: textColor, fillColor: null }
+        ]);
+      });
+
+      // Calcular totales para este tipo
+      const typeTotalPrice = typeServices.reduce((acc, service) => acc + Number(service.type?.price ?? 0), 0);
+      const typeTotalExtras = typeServices.reduce((acc, service) => 
+        acc + (service.extrasByServices?.reduce((sum, extraByService) => 
+          sum + Number(extraByService?.extra?.itemPrice ?? 0), 0) ?? 0), 0);
+      const typeTotal = typeTotalPrice + typeTotalExtras;
+
+      typeTableBody.push([
+        { text: '', fillColor: '#acb3c1', color: null },
+        { text: '', fillColor: '#acb3c1', color: null },
+        { text: 'Total:', fillColor: '#acb3c1', color: null },
+        { text: formatCurrency(typeTotalPrice), fillColor: '#acb3c1', color: null },
+        { text: formatCurrency(typeTotalExtras), fillColor: '#acb3c1', color: null },
+        { text: formatCurrency(typeTotal), fillColor: '#acb3c1', color: null }
+      ]);
+    });
+
     const community = await this.communityRepository.findOne({ where: { id: communityId } });
 
     const docDefinition: TDocumentDefinitions = {
@@ -688,6 +763,19 @@ export class ReportsService {
             headerRows: 1,
             widths: ['*', '*', '*', '*', '*', '*'],
             body: tableBody
+          }
+        },
+        {
+          text: 'Reporte de Servicios por Tipo',
+          style: 'subheader',
+          margin: [0, 20, 0, 10],
+        },
+        {
+          layout: 'customLayout01',
+          table: {
+            headerRows: 1,
+            widths: ['*', '*', '*', '*', '*', '*'],
+            body: typeTableBody
           }
         }
       ],
