@@ -208,7 +208,11 @@ export class ServicesService {
       .take(pageOptionsDto.take);
 
     if (servicesByManagerDto.statusID !== undefined) {
-      queryBuilder.andWhere('services.statusId = :statusID', { statusID: servicesByManagerDto.statusID });
+      if (servicesByManagerDto.statusID === '2') {
+        queryBuilder.andWhere('services.statusId IN (:...statusIDs)', { statusIDs: ['2', '3'] });
+      } else {
+        queryBuilder.andWhere('services.statusId = :statusID', { statusID: servicesByManagerDto.statusID });
+      }
     }
 
     const [items, totalCount] = await queryBuilder.getManyAndCount();
