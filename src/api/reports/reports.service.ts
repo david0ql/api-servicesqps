@@ -598,6 +598,9 @@ export class ReportsService {
 
   async reportByCommunity(communityId: string) {
     const today = moment();
+    const currentYear = today.year();
+    const startOfYear = moment().startOf('year').format('YYYY-MM-DD');
+    const endOfYear = moment().endOf('year').format('YYYY-MM-DD');
 
     const queryBuilder = this.servicesRepository.createQueryBuilder('services');
 
@@ -607,7 +610,8 @@ export class ReportsService {
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
-      .where('services.community_id = :communityId', { communityId });
+      .where('services.community_id = :communityId', { communityId })
+      .andWhere('services.date BETWEEN :startOfYear AND :endOfYear', { startOfYear, endOfYear });
 
     const services = await queryBuilder.getMany();
 
@@ -740,7 +744,7 @@ export class ReportsService {
         columns: [
           logo,
           {
-            text: `Service Report - ${community?.communityName ?? 'Community'}`,
+            text: `Service Report - ${community?.communityName ?? 'Community'} - ${currentYear}`,
             style: 'header',
           },
           {
@@ -787,7 +791,7 @@ export class ReportsService {
 
     const doc = this.printerService.createPDF(docDefinition);
 
-    doc.info.Title = `Service Report - ${community?.communityName ?? 'Community'}`;
+    doc.info.Title = `Service Report - ${community?.communityName ?? 'Community'} - ${currentYear}`;
 
     return doc;
   }
