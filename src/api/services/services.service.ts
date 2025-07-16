@@ -217,14 +217,21 @@ export class ServicesService {
 
     const [items, totalCount] = await queryBuilder.getManyAndCount();
     
-    // Set commission to 0 if it exists in type
+    // Set commission to 0 if it exists in type and modify statusId for status 2 and 3
     const modifiedItems = items.map(service => {
+      // Modificar commission si existe en type
       if (service.type && service.type.commission !== undefined) {
         service.type = {
           ...service.type,
           commission: 0
         };
       }
+      
+      // Si el statusId es 2 o 3, cambiar el statusId a "2" pero mantener el name original
+      if (service.statusId === '2' || service.statusId === '3') {
+        service.statusId = '2';
+      }
+      
       return service;
     });
 
