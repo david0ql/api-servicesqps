@@ -177,6 +177,7 @@ export class ReportsService {
       { date: today.format('MM/DD/YYYY'), description: 'Savings Navidad', amount: 75 },
       { date: today.format('MM/DD/YYYY'), description: 'Kemper (Insurance)', amount: 105.75 },
       { date: today.format('MM/DD/YYYY'), description: 'Next Insurance G/L', amount: 20 },
+      { date: today.format('MM/DD/YYYY'), description: "Supervisor's tablet line", amount: 30 },
     ];
 
     costs.push(
