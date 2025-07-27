@@ -177,8 +177,11 @@ export class ReportsService {
       { date: today.format('MM/DD/YYYY'), description: 'Savings Navidad', amount: 75 },
       { date: today.format('MM/DD/YYYY'), description: 'Kemper (Insurance)', amount: 105.75 },
       { date: today.format('MM/DD/YYYY'), description: 'Next Insurance G/L', amount: 20 },
-      { date: today.format('MM/DD/YYYY'), description: "Supervisor's tablet line", amount: 30 },
     ];
+
+    if (today.isSameOrAfter(moment('2025-07-21'))) {
+      extraCosts.push({ date: today.format('MM/DD/YYYY'), description: "Supervisor's tablet line", amount: 7.5 });
+    }
 
     costs.push(
       ...extraCosts.map(cost => ({
@@ -537,6 +540,11 @@ export class ReportsService {
       { date: today.format('MM/DD/YYYY'), description: 'Kemper (Insurance)', amount: 105.75 },
       { date: today.format('MM/DD/YYYY'), description: 'Next Insurance G/L', amount: 20 },
     ];
+
+
+    if (today.isSameOrAfter(moment('2025-07-21'))) {
+      extraCosts.push({ date: today.format('MM/DD/YYYY'), description: "Supervisor's tablet line", amount: 7.5 });
+    }
 
     costs.push(
       ...extraCosts.map(cost => ({
