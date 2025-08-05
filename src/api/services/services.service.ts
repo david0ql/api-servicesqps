@@ -455,7 +455,7 @@ export class ServicesService {
       '2': `You have a new service for ${moment(fullService.date).format('MM/DD/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
       '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment(fullService.date).format('MM/DD/YYYY')}`,
       '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')}`,
-      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')}`,
+      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('DD/MM/YYYY')} in apartment number ${fullService.unitNumber}`,
     };
   
     const statusMessage = statusMessages[fullService.status?.id];
@@ -518,9 +518,11 @@ export class ServicesService {
       relations: ['supervisorUser', 'managerUser'],
     });
 
-    const communityUserIds = communities
-      .flatMap(c => [c.supervisorUser?.id, c.managerUser?.id])
-      .filter(Boolean);
+    const includeCommunityUsers = service.status?.id === '5';
+
+    const communityUserIds = includeCommunityUsers
+      ? communities.flatMap(c => [c.supervisorUser?.id, c.managerUser?.id]).filter(Boolean)
+      : [];
 
     const fullCommunityUsers = communityUserIds.length
       ? await this.usersRepository.findBy({
