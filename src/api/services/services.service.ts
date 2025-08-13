@@ -46,7 +46,7 @@ export class ServicesService {
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
-      .orderBy('services.createdAt', pageOptionsDto.order)
+      .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
       .where('services.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
@@ -73,7 +73,7 @@ export class ServicesService {
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
-      .orderBy('services.date', pageOptionsDto.order)
+      .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
 
@@ -118,7 +118,7 @@ export class ServicesService {
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
-      .orderBy('services.date', pageOptionsDto.order)
+      .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
       .where('services.statusId = :statusID', { statusID })
@@ -140,7 +140,7 @@ export class ServicesService {
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
-      .orderBy('services.date', pageOptionsDto.order)
+      .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
       .where('services.statusId = :statusID', { statusID })
@@ -180,7 +180,7 @@ export class ServicesService {
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
       .where('services.userId = :userId', { userId })
-      .orderBy('services.date', pageOptionsDto.order)
+      .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
 
@@ -203,7 +203,7 @@ export class ServicesService {
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
       .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
-      .orderBy('services.date', pageOptionsDto.order)
+      .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take);
 
@@ -254,7 +254,7 @@ export class ServicesService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
       .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
       .andWhere('services.statusId = :statusID', { statusID })
-      .orderBy('services.date', pageOptionsDto.order)
+      .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
 
