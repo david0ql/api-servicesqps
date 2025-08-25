@@ -81,9 +81,9 @@ const customTableLayouts: Record<string, CustomTableLayout> = {
 @Injectable()
 export class ReportsService {
 
-  private readonly hugoComission = 0.2;
-  private readonly felixComission = 0.6;
-  private readonly felixSonComission = 0.2;
+  private readonly accionista1Comission = 0.3333;
+  private readonly accionista2Comission = 0.3333;
+  private readonly accionista3Comission = 0.3334; // 0.3334 para completar 100%
 
   constructor(
     private readonly printerService: PrinterService,
@@ -197,10 +197,18 @@ export class ReportsService {
     // Cálculo correcto del beneficio neto
     const netProfit = (totalServicePrice + totalExtrasPrice - totalCleanerSum - totalCosts);
     
-    // Aplicar porcentajes de comisión al beneficio neto
-    const totalHugoSum = netProfit * this.hugoComission;
-    const totalFelixSum = netProfit * this.felixComission;
-    const totalFelixSonSum = netProfit * this.felixSonComission;
+    // Aplicar porcentajes de comisión al beneficio neto (33.33% cada uno)
+    const totalAccionista1Sum = netProfit * this.accionista1Comission;
+    const totalAccionista2Sum = netProfit * this.accionista2Comission;
+    const totalAccionista3Sum = netProfit * this.accionista3Comission;
+
+    // Calcular distribución 60% para pagos y 40% para reservas
+    const accionista1Pago = totalAccionista1Sum * 0.6;
+    const accionista1Reserva = totalAccionista1Sum * 0.4;
+    const accionista2Pago = totalAccionista2Sum * 0.6;
+    const accionista2Reserva = totalAccionista2Sum * 0.4;
+    const accionista3Pago = totalAccionista3Sum * 0.6;
+    const accionista3Reserva = totalAccionista3Sum * 0.4;
 
     // Generar tabla agrupada por comunidad
     const tableBody = [
@@ -267,28 +275,36 @@ export class ReportsService {
       { text: '', fillColor: '#acb3c1', color: null }
     ]);
 
-    // Nueva tabla de comisiones con costos
+    // Nueva tabla de comisiones con distribución 60%/40%
     const comisionesTableBody = [
-      ['Accionista', 'Porcentaje', 'Ganancia Neta'],
+      ['Accionista', 'Porcentaje', 'Ganancia Neta (33.33%)', 'Pago (60%)', 'Reservas (40%)'],
       [
-        'Hugo',
-        '20%',
-        formatCurrency(totalHugoSum)
+        'Accionista 1',
+        '33.33%',
+        formatCurrency(totalAccionista1Sum),
+        formatCurrency(accionista1Pago),
+        formatCurrency(accionista1Reserva)
       ],
       [
-        'Felix',
-        '60%',
-        formatCurrency(totalFelixSum)
+        'Accionista 2',
+        '33.33%',
+        formatCurrency(totalAccionista2Sum),
+        formatCurrency(accionista2Pago),
+        formatCurrency(accionista2Reserva)
       ],
       [
-        'Felix hijo',
-        '20%',
-        formatCurrency(totalFelixSonSum)
+        'Accionista 3',
+        '33.34%',
+        formatCurrency(totalAccionista3Sum),
+        formatCurrency(accionista3Pago),
+        formatCurrency(accionista3Reserva)
       ],
       [
         'Total',
         '100%',
-        formatCurrency(totalHugoSum + totalFelixSum + totalFelixSonSum)
+        formatCurrency(totalAccionista1Sum + totalAccionista2Sum + totalAccionista3Sum),
+        formatCurrency(accionista1Pago + accionista2Pago + accionista3Pago),
+        formatCurrency(accionista1Reserva + accionista2Reserva + accionista3Reserva)
       ]
     ];
 
@@ -346,7 +362,7 @@ export class ReportsService {
           layout: 'customLayout01',
           table: {
             headerRows: 1,
-            widths: ['*', 'auto', 'auto'],
+            widths: ['*', 'auto', 'auto', 'auto', 'auto'],
             body: comisionesTableBody
           }
         },
