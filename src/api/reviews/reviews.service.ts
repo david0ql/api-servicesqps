@@ -95,7 +95,7 @@ export class ReviewsService {
       }
     }
 
-    const hasFailedItems = savedReviews.some(review => review.value === 0);
+    const hasFailedItems = savedReviews.some(review => review.value !== 0);
 
     if (hasFailedItems) {
       await this.servicesRepository.update(createServiceReviewDto.serviceId, {
