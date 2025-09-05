@@ -175,10 +175,6 @@ export class ReportsService {
     const extraCosts = [
     ];
 
-    if (services.some(service => moment(service.date).isAfter(moment('2025-07-21')))) {
-      extraCosts.push({ date: today.format('MM/DD/YYYY'), description: "Supervisor's tablet line", amount: 7.5 });
-    }
-
     costs.push(
       ...extraCosts.map(cost => ({
         date: moment(cost.date).format('YYYY-MM-DD'),
@@ -548,10 +544,6 @@ export class ReportsService {
 
     const extraCosts = [
     ];
-
-    if (moment(date).isAfter(moment('2025-07-21'))) {
-      extraCosts.push({ date: today.format('MM/DD/YYYY'), description: "Supervisor's tablet line", amount: 7.5 });
-    }
 
     costs.push(
       ...extraCosts.map(cost => ({
