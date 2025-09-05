@@ -173,10 +173,6 @@ export class ReportsService {
     });
 
     const extraCosts = [
-      { date: today.format('MM/DD/YYYY'), description: 'GoDaddy (email QPS)', amount: 2.5 },
-      { date: today.format('MM/DD/YYYY'), description: 'Savings Navidad', amount: 75 },
-      { date: today.format('MM/DD/YYYY'), description: 'Kemper (Insurance)', amount: 105.75 },
-      { date: today.format('MM/DD/YYYY'), description: 'Next Insurance G/L', amount: 20 },
     ];
 
     if (services.some(service => moment(service.date).isAfter(moment('2025-07-21')))) {
@@ -551,10 +547,6 @@ export class ReportsService {
     });
 
     const extraCosts = [
-      { date: today.format('MM/DD/YYYY'), description: 'GoDaddy (email QPS)', amount: 2.5 },
-      { date: today.format('MM/DD/YYYY'), description: 'Savings Navidad', amount: 75 },
-      { date: today.format('MM/DD/YYYY'), description: 'Kemper (Insurance)', amount: 105.75 },
-      { date: today.format('MM/DD/YYYY'), description: 'Next Insurance G/L', amount: 20 },
     ];
 
     if (moment(date).isAfter(moment('2025-07-21'))) {
