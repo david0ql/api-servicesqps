@@ -95,9 +95,9 @@ export class ReportsService {
     private readonly communityRepository: Repository<CommunitiesEntity>,
   ) { }
 
-  async reporteGeneral(date: string) {
-    const startOfWeek = moment(date).startOf('isoWeek').format('YYYY-MM-DD');
-    const endOfWeek = moment(date).endOf('isoWeek').format('YYYY-MM-DD');
+  async reporteGeneral(startDate: string, endDate: string) {
+    const startOfWeek = moment(startDate).format('YYYY-MM-DD');
+    const endOfWeek = moment(endDate).format('YYYY-MM-DD');
 
     const today = moment();
 
@@ -385,9 +385,9 @@ export class ReportsService {
     return doc;
   }
 
-  async reporteCleaner(date: string) {
-    const startOfWeek = moment(date).startOf('isoWeek').format('YYYY-MM-DD');
-    const endOfWeek = moment(date).endOf('isoWeek').format('YYYY-MM-DD');
+  async reporteCleaner(startDate: string, endDate: string) {
+    const startOfWeek = moment(startDate).format('YYYY-MM-DD');
+    const endOfWeek = moment(endDate).format('YYYY-MM-DD');
     const today = moment();
 
     const queryBuilder = this.servicesRepository.createQueryBuilder('services');
@@ -529,9 +529,9 @@ export class ReportsService {
     return doc;
   }
 
-  async costosSemana(date: string) {
-    const startOfWeek = moment(date).startOf('isoWeek').format('YYYY-MM-DD');
-    const endOfWeek = moment(date).endOf('isoWeek').format('YYYY-MM-DD');
+  async costosSemana(startDate: string, endDate: string) {
+    const startOfWeek = moment(startDate).format('YYYY-MM-DD');
+    const endOfWeek = moment(endDate).format('YYYY-MM-DD');
 
     const today = moment();
     const costs = []
