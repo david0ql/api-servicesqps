@@ -9,9 +9,8 @@ interface EnvVars {
     DB_DATABASE: string
     DB_USERNAME: string
     DB_PASSWORD: string
-    TWILIO_SID: string
-    TWILIO_TOKEN: string
-    TWILIO_SENDER_NUMBER: string
+    TEXTBEE_API_KEY: string
+    TEXTBEE_DEVICE_ID: string
     JWT_SECRET: string
     PORT: number
     EXPO_ACCESS_TOKEN: string
@@ -27,9 +26,8 @@ const envSchema = joi
     DB_DATABASE: joi.string().required(),
     DB_USERNAME: joi.string().required(),
     DB_PASSWORD: joi.string().required(),
-    TWILIO_SID: joi.string().required(),
-    TWILIO_TOKEN: joi.string().required(),
-    TWILIO_SENDER_NUMBER: joi.string().required(),
+    TEXTBEE_API_KEY: joi.string().required(),
+    TEXTBEE_DEVICE_ID: joi.string().required(),
     JWT_SECRET: joi.string().required(),
     PORT: joi.number().default(3000),
     EXPO_ACCESS_TOKEN: joi.string().required(),

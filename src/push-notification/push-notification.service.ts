@@ -4,10 +4,10 @@ import {
 } from '@nestjs/common';
 
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
-import { TwilioService } from 'nestjs-twilio';
 
 import { UsersEntity } from '../entities/users.entity';
 import envVars from '../config/env';
+import { TextBeeService } from '../textbee/textbee.service';
 
 export interface TokensNotification {
     tokens: string[];
@@ -27,7 +27,7 @@ export class PushNotificationsService {
     private readonly logger = new Logger(PushNotificationsService.name);
 
     constructor(
-        private readonly twilioService: TwilioService,
+        private readonly textBeeService: TextBeeService,
     ) { }
 
     private expo = new Expo({
@@ -36,31 +36,7 @@ export class PushNotificationsService {
     });
 
     private async sendSMS(phoneNumber: string, message: string): Promise<boolean> {
-        try {
-            // Basic phone number validation
-            if (!phoneNumber || !phoneNumber.match(/^\+?[1-9]\d{1,14}$/)) {
-                this.logger.warn(`Invalid phone number format: ${phoneNumber}`);
-                return false;
-            }
-
-            const result = await this.twilioService.client.messages.create({
-                body: message,
-                from: envVars.TWILIO_SENDER_NUMBER,
-                to: phoneNumber,
-            });
-
-            this.logger.log(`SMS sent successfully to ${phoneNumber}, SID: ${result.sid}`);
-            return true;
-        } catch (error) {
-            this.logger.error(`Failed to send SMS to ${phoneNumber}: ${error.message}`, {
-                error: error.message,
-                code: error.code,
-                status: error.status,
-                moreInfo: error.moreInfo,
-                stack: error.stack
-            });
-            return false;
-        }
+        return await this.textBeeService.sendSMS(phoneNumber, message);
     }
 
     async sendNotification(pushNotification: PushNotification) {
