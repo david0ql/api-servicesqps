@@ -1,13 +1,9 @@
 import { Module } from '@nestjs/common';
 import { PushNotificationsService } from './push-notification.service';
-import { TwilioModule } from 'nestjs-twilio';
-import envVars from '../config/env';
+import { TextBeeModule } from '../textbee/textbee.module';
 
 @Module({
-  imports: [TwilioModule.forRoot({
-    accountSid: envVars.TWILIO_SID,
-    authToken: envVars.TWILIO_TOKEN,
-  }),],
+  imports: [TextBeeModule],
   providers: [PushNotificationsService],
   exports: [PushNotificationsService],
 })

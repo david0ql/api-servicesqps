@@ -17,7 +17,6 @@ import { PermissionsModule } from './api/permissions/permissions.module';
 import { ReviewsModule } from './api/reviews/reviews.module';
 
 import envVars from './config/env';
-import { TwilioModule } from 'nestjs-twilio';
 
 @Module({
   imports: [
