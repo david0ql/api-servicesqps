@@ -5,7 +5,7 @@ import envVars from '../config/env';
 @Injectable()
 export class TextBeeService {
     private readonly logger = new Logger(TextBeeService.name);
-    private readonly apiUrl = 'https://api.textbee.dev/api/v1/gateway/devices';
+    private readonly apiUrl = 'https://api-textbee.servicesqps.com/api/v1/gateway/devices';
     private readonly apiKey: string;
     private readonly deviceId: string;
 
