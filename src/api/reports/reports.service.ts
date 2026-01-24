@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import moment from 'moment';
 import type { Content, StyleDictionary, TDocumentDefinitions, BufferOptions, CustomTableLayout } from 'pdfmake/interfaces';
 import { CostsEntity } from '../../entities/costs.entity';
+import { RecurringCostsEntity } from '../../entities/recurring_costs.entity';
 import { Between, Repository } from 'typeorm';
 import { ServicesEntity } from '../../entities/services.entity';
 import { ExtrasByServiceEntity } from '../../entities/extras_by_service.entity';
@@ -89,6 +90,8 @@ export class ReportsService {
     private readonly printerService: PrinterService,
     @InjectRepository(CostsEntity)
     private costsRepository: Repository<CostsEntity>,
+    @InjectRepository(RecurringCostsEntity)
+    private recurringCostsRepository: Repository<RecurringCostsEntity>,
     @InjectRepository(ServicesEntity)
     private readonly servicesRepository: Repository<ServicesEntity>,
     @InjectRepository(CommunitiesEntity)
@@ -172,20 +175,11 @@ export class ReportsService {
       },
     });
 
-    const extraCosts = [
-      { date: today.format('MM/DD/YYYY'), description: 'GoDaddy (email QPS)', amount: 2.5 },
-      { date: today.format('MM/DD/YYYY'), description: 'Savings Navidad', amount: 75 },
-      { date: today.format('MM/DD/YYYY'), description: 'Kemper (Insurance)', amount: 105.75 },
-      { date: today.format('MM/DD/YYYY'), description: 'Next Insurance G/L', amount: 20 },
-    ];
-
-    if (services.some(service => moment(service.date).isAfter(moment('2025-07-21')))) {
-      extraCosts.push({ date: today.format('MM/DD/YYYY'), description: "Supervisor's tablet line", amount: 7.5 });
-    }
+    const recurringCosts = await this.getRecurringCosts(startOfWeek, endOfWeek);
 
     costs.push(
-      ...extraCosts.map(cost => ({
-        date: moment(cost.date).format('YYYY-MM-DD'),
+      ...recurringCosts.map(cost => ({
+        date: moment(endOfWeek).format('YYYY-MM-DD'),
         description: cost.description,
         amount: cost.amount,
       })),
@@ -581,20 +575,11 @@ export class ReportsService {
       },
     });
 
-    const extraCosts = [
-      { date: today.format('MM/DD/YYYY'), description: 'GoDaddy (email QPS)', amount: 2.5 },
-      { date: today.format('MM/DD/YYYY'), description: 'Savings Navidad', amount: 75 },
-      { date: today.format('MM/DD/YYYY'), description: 'Kemper (Insurance)', amount: 105.75 },
-      { date: today.format('MM/DD/YYYY'), description: 'Next Insurance G/L', amount: 20 },
-    ];
-
-    if (moment(startDate).isAfter(moment('2025-07-21'))) {
-      extraCosts.push({ date: today.format('MM/DD/YYYY'), description: "Supervisor's tablet line", amount: 7.5 });
-    }
+    const recurringCosts = await this.getRecurringCosts(startOfWeek, endOfWeek);
 
     costs.push(
-      ...extraCosts.map(cost => ({
-        date: moment(cost.date).format('YYYY-MM-DD'),
+      ...recurringCosts.map(cost => ({
+        date: moment(endOfWeek).format('YYYY-MM-DD'),
         description: cost.description,
         amount: cost.amount,
       })),
@@ -849,6 +834,15 @@ export class ReportsService {
     doc.info.Title = `Service Report - ${community?.communityName ?? 'Community'} - ${currentYear}`;
 
     return doc;
+  }
+
+  private async getRecurringCosts(startOfWeek: string, endOfWeek: string) {
+    return this.recurringCostsRepository
+      .createQueryBuilder('recurring_costs')
+      .where('recurring_costs.is_active = :isActive', { isActive: true })
+      .andWhere('recurring_costs.start_date <= :endOfWeek', { endOfWeek })
+      .andWhere('(recurring_costs.end_date IS NULL OR recurring_costs.end_date >= :startOfWeek)', { startOfWeek })
+      .getMany();
   }
 
   private buildCleanerReportDocDefinition(
