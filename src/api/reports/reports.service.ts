@@ -521,6 +521,53 @@ export class ReportsService {
     return doc;
   }
 
+  async reporteCleanerZip(startDate: string, endDate: string) {
+    const startOfWeek = moment(startDate).format('YYYY-MM-DD');
+    const endOfWeek = moment(endDate).format('YYYY-MM-DD');
+    const today = moment();
+
+    const queryBuilder = this.servicesRepository.createQueryBuilder('services');
+
+    queryBuilder
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .leftJoinAndSelect('services.user', 'user')
+      .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .where('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek });
+
+    const services = await queryBuilder.getMany();
+
+    const cleanersMap = new Map<string, ServicesEntity[]>();
+    services.forEach(service => {
+      const cleanerName = service.user?.name || 'N/A';
+      if (!cleanersMap.has(cleanerName)) {
+        cleanersMap.set(cleanerName, []);
+      }
+      cleanersMap.get(cleanerName).push(service);
+    });
+
+    const cleanerEntries = Array.from(cleanersMap.entries());
+    const poolSize = 5;
+    const files: Array<{ fileName: string; buffer: Buffer }> = [];
+
+    for (let index = 0; index < cleanerEntries.length; index += poolSize) {
+      const batch = cleanerEntries.slice(index, index + poolSize);
+      const batchResults = await Promise.all(
+        batch.map(([cleanerName, cleanerServices]) =>
+          this.buildCleanerReportBuffer(cleanerName, cleanerServices, startOfWeek, endOfWeek, today),
+        ),
+      );
+      files.push(...batchResults);
+    }
+
+    return {
+      zipName: `cleaner-reports-${startOfWeek}-to-${endOfWeek}.zip`,
+      files,
+    };
+  }
+
   async costosSemana(startDate: string, endDate: string) {
     const startOfWeek = moment(startDate).format('YYYY-MM-DD');
     const endOfWeek = moment(endDate).format('YYYY-MM-DD');
@@ -802,5 +849,156 @@ export class ReportsService {
     doc.info.Title = `Service Report - ${community?.communityName ?? 'Community'} - ${currentYear}`;
 
     return doc;
+  }
+
+  private buildCleanerReportDocDefinition(
+    cleanerName: string,
+    services: ServicesEntity[],
+    startOfWeek: string,
+    endOfWeek: string,
+    today: moment.Moment,
+  ): TDocumentDefinitions {
+    const formatCurrency = (value: number) =>
+      new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+
+    const servicesDashboard = services.map(service => {
+      const totalExtrasByService = service.extrasByServices?.reduce((acc, extraByService) => {
+        const commission = extraByService?.extra?.commission ?? 0;
+        return acc + Number(commission);
+      }, 0) ?? 0;
+
+      const typeCommission = service.type?.commission ?? 0;
+      const typePrice = service.type?.price ?? 0;
+
+      const totalCleaner = Number(totalExtrasByService) + Number(typeCommission);
+      const totalNotAdjusted = Number(typePrice) - Number(typeCommission) - Number(totalExtrasByService);
+
+      const totalParner = totalNotAdjusted * 0.4;
+      const total = totalNotAdjusted * 0.6;
+
+      return {
+        ...service,
+        totalCleaner,
+        totalParner,
+        total,
+      };
+    });
+
+    const totalCommission = servicesDashboard.reduce((acc, service) => acc + Number(service.type?.commission ?? 0), 0);
+    const totalExtras = servicesDashboard.reduce((acc, service) =>
+      acc + (service.extrasByServices?.reduce((sum, extraByService) =>
+        sum + Number(extraByService?.extra?.commission ?? 0), 0) ?? 0), 0);
+    const totalCleanerAmount = servicesDashboard.reduce((acc, service) => acc + Number(service.totalCleaner ?? 0), 0);
+
+    const tableBody = [
+      ['Date', 'Community', 'Unit number', 'Type', 'Commission', 'Extras', 'Total'],
+      ...servicesDashboard.map(service => [
+        moment(service.date).format('MM/DD/YYYY'),
+        service.community?.communityName ?? 'N/A',
+        service.unitNumber ?? 'N/A',
+        'Total:',
+        formatCurrency(Number(service.type?.commission ?? 0)),
+        formatCurrency(service.extrasByServices?.reduce((acc, extraByService) => acc + Number(extraByService?.extra?.commission ?? 0), 0) ?? 0),
+        formatCurrency(Number(service.totalCleaner ?? 0)),
+      ]),
+      [
+        '',
+        '',
+        'Total: ',
+        '',
+        formatCurrency(totalCommission),
+        formatCurrency(totalExtras),
+        formatCurrency(totalCleanerAmount),
+      ].map(cell => ({
+        text: cell,
+        fillColor: '#acb3c1',
+        color: '#000000',
+      })),
+    ];
+
+    return {
+      styles,
+      pageMargins: [40, 120, 40, 60],
+      pageOrientation: 'landscape',
+      pageSize: 'LETTER',
+      header: (currentPage, pageCount) => ({
+        columns: [
+          logo,
+          {
+            text: `Cleaner Report - Week ${moment(startOfWeek).format('MM/DD/YYYY')} to ${moment(endOfWeek).format('MM/DD/YYYY')}`,
+            style: 'header',
+          },
+          {
+            fontSize: 10,
+            text: `Page ${currentPage} of ${pageCount} - ${today.format('LL')}`,
+            italics: true,
+            alignment: 'right',
+            margin: [20, 20],
+          },
+        ],
+      }),
+      content: [
+        {
+          text: `Cleaner: ${cleanerName}`,
+          style: 'subheader',
+          margin: [0, 10, 0, 10],
+        },
+        {
+          layout: 'customLayout01',
+          table: {
+            headerRows: 1,
+            widths: ['*', '*', '*', '*', '*', '*', '*'],
+            body: tableBody,
+          },
+        },
+      ],
+      footer: (currentPage, pageCount) => ({
+        text: `© ${moment().format('YYYY')} Services QPS. Este documento es confidencial y no puede ser compartido.`,
+        style: 'footer',
+        alignment: 'center',
+        margin: [0, 10, 0, 0],
+      }),
+    };
+  }
+
+  private async buildCleanerReportBuffer(
+    cleanerName: string,
+    services: ServicesEntity[],
+    startOfWeek: string,
+    endOfWeek: string,
+    today: moment.Moment,
+  ) {
+    const docDefinition = this.buildCleanerReportDocDefinition(
+      cleanerName,
+      services,
+      startOfWeek,
+      endOfWeek,
+      today,
+    );
+    const doc = this.printerService.createPDF(docDefinition);
+    doc.info.Title = `Cleaner Report - ${cleanerName} - ${startOfWeek} to ${endOfWeek}`;
+    const buffer = await this.collectPdfBuffer(doc);
+    const fileName = `${this.sanitizeFileName(cleanerName)}-${startOfWeek}-to-${endOfWeek}.pdf`;
+
+    return { fileName, buffer };
+  }
+
+  private sanitizeFileName(value: string) {
+    const normalized = value
+      .normalize('NFKD')
+      .replace(/[^a-zA-Z0-9-_ ]/g, '')
+      .trim();
+    const compact = normalized.replace(/\s+/g, '_');
+    return compact.length > 0 ? compact : 'cleaner';
+  }
+
+  private collectPdfBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      doc.on('data', chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      doc.end();
+    });
   }
 }
