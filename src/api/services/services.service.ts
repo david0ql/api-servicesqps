@@ -482,14 +482,18 @@ export class ServicesService {
   async remove(id: string) {
     const service = await this.servicesRepository.findOne({
       where: { id },
+      relations: ['community'],
     });
 
     if (!service) {
       throw new NotFoundException(`Service with ID ${id} not found`);
     }
 
+    const communityName = service.community?.communityName ?? 'Unknown Community';
+    const unitNumber = service.unitNumber?.trim() || 'Unknown Apartment';
+
     const notification = {
-      body: `The service with ID: ${service.id} has been removed`,
+      body: `The service has been deleted for apartment ${unitNumber} in ${communityName}`,
       title: 'Service Removed',
       data: {
         serviceId: service.id,
