@@ -1,5 +1,6 @@
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { CommunitiesModule } from './api/communities/communities.module';
 import { CompaniesModule } from './api/companies/companies.module';
@@ -16,11 +17,13 @@ import { ReportsModule } from './api/reports/reports.module';
 import { PrinterModule } from './printer/printer.module';
 import { PermissionsModule } from './api/permissions/permissions.module';
 import { ReviewsModule } from './api/reviews/reviews.module';
+import { ServiceChatModule } from './api/service-chat/service-chat.module';
 
 import envVars from './config/env';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: "mysql",
       host: envVars.DB_HOST,
@@ -48,6 +51,7 @@ import envVars from './config/env';
     PrinterModule,
     PermissionsModule,
     ReviewsModule,
+    ServiceChatModule,
   ],
   controllers: [],
   providers: [],

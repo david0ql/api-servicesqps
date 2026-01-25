@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull, In } from 'typeorm';
+import { Repository, Not, IsNull, In, Brackets } from 'typeorm';
 import moment from 'moment';
 
 import { ServicesByManagerDto } from './dto/services-by-manager.dto';
@@ -57,6 +57,49 @@ export class ServicesService {
       .orWhere('services.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
 
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount()
+
+    const pageMetaDto = new PageMetaDto({ totalCount, pageOptionsDto });
+
+    return new PageDto(items, pageMetaDto);
+  }
+
+  async searchByWordByCommunities(
+    searchDto: SearchDto,
+    userId: string,
+    pageOptionsDto: PageOptionsDto,
+  ): Promise<PageDto<ServicesEntity>> {
+    const communities = await this.communitiesRepository.find({
+      where: [{ supervisorUserId: userId }, { managerUserId: userId }],
+      select: ['id'],
+    });
+
+    const communityIds = communities.map((community) => community.id);
+    if (!communityIds.length) {
+      const pageMetaDto = new PageMetaDto({ totalCount: 0, pageOptionsDto });
+      return new PageDto([], pageMetaDto);
+    }
+
+    const queryBuilder = this.servicesRepository.createQueryBuilder('services')
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .leftJoinAndSelect('services.user', 'user')
+      .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .orderBy('services.createdAt', 'DESC')
+      .skip(pageOptionsDto.skip)
+      .take(pageOptionsDto.take)
+      .where('services.communityId IN (:...communityIds)', { communityIds })
+      .andWhere(new Brackets((qb) => {
+        qb.where('services.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.comment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.userComment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.unitySize LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      }));
+
+    const [items, totalCount] = await queryBuilder.getManyAndCount();
 
     const pageMetaDto = new PageMetaDto({ totalCount, pageOptionsDto });
 

@@ -1,6 +1,8 @@
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { join } from 'path';
+import * as express from 'express';
 
 import { AppModule } from './app.module';
 
@@ -21,6 +23,8 @@ async function bootstrap() {
   app.enableCors({
     origin: "*"
   });
+
+  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, documentFactory);

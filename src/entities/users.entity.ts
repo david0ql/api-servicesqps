@@ -8,6 +8,7 @@ import {
 import { CommunitiesEntity } from "./communities.entity";
 import { ServicesEntity } from "./services.entity";
 import { RolesEntity } from "./roles.entity";
+import { ServiceChatMessagesEntity } from "./service_chat_messages.entity";
 import { ManyToOneNoAction, OneToManyNoAction } from "../decorators/relations.decorator";
 
 @Index("role_id", ["roleId"], {})
@@ -58,6 +59,12 @@ export class UsersEntity {
 
   @OneToManyNoAction(() => ServicesEntity, (servicesEntity) => servicesEntity.user)
   services: ServicesEntity[];
+
+  @OneToManyNoAction(
+    () => ServiceChatMessagesEntity,
+    (serviceChatMessagesEntity) => serviceChatMessagesEntity.user
+  )
+  chatMessages: ServiceChatMessagesEntity[];
 
   @ManyToOneNoAction(() => RolesEntity, (rolesEntity) => rolesEntity.users)
   @JoinColumn([{ name: "role_id", referencedColumnName: "id" }])

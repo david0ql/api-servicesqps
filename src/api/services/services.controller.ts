@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, ParseDatePipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, ParseDatePipe, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -24,6 +24,17 @@ export class ServicesController {
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<ServicesEntity>> {
     return this.servicesService.searchByWord(searchDto, pageOptionsDto);
+  }
+
+  @Post('/search/by-communities')
+  @ApiPaginatedResponse(ServicesEntity)
+  @UseGuards(AuthGuard('jwt'))
+  searchByWordByCommunities(
+    @Query() pageOptionsDto: PageOptionsDto,
+    @Body() searchDto: SearchDto,
+    @Request() req: any,
+  ): Promise<PageDto<ServicesEntity>> {
+    return this.servicesService.searchByWordByCommunities(searchDto, req.user.user.id, pageOptionsDto);
   }
 
   @Get('')

@@ -7,6 +7,7 @@ import {
 } from "typeorm";
 import { ExtrasByServiceEntity } from "./extras_by_service.entity";
 import { ReviewsByServiceEntity } from "./reviews_by_service.entity";
+import { ServiceChatMessagesEntity } from "./service_chat_messages.entity";
 import { StatusesEntity } from "./statuses.entity";
 import { CommunitiesEntity } from "./communities.entity";
 import { UsersEntity } from "./users.entity";
@@ -72,6 +73,12 @@ export class ServicesEntity {
 
   @OneToMany('ReviewsByServiceEntity', 'service')
   reviewsByServices: any[];
+
+  @OneToMany(
+    () => ServiceChatMessagesEntity,
+    (serviceChatMessagesEntity) => serviceChatMessagesEntity.service
+  )
+  chatMessages: ServiceChatMessagesEntity[];
 
   @ManyToOne(() => StatusesEntity, (statusesEntity) => statusesEntity.services)
   @JoinColumn([{ name: "status_id", referencedColumnName: "id" }])
