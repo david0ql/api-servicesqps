@@ -45,7 +45,7 @@ export interface ServiceChatAttachment {
   name: string | null;
 }
 
-const CHAT_ALLOWED_ROLES = new Set<string>(['1', '4', '6']);
+const CHAT_ALLOWED_ROLES = new Set<string>(['1', '4', '7']);
 const MAX_MESSAGE_LENGTH = 2000;
 const CHAT_RETENTION_MONTHS = 3;
 const SYSTEM_USER: ServiceChatUser = {
@@ -210,17 +210,16 @@ export class ServiceChatService {
     }
 
     if (!user?.id || !CHAT_ALLOWED_ROLES.has(user.roleId ?? '')) {
-      throw new ForbiddenException('Chat is only available to cleaners, supervisors, and admins.');
+      throw new ForbiddenException('Chat is only available to cleaners, QA, and admins.');
     }
 
     const isAdmin = user.roleId === '1';
-    if (!isAdmin) {
+    const isQa = user.roleId === '7';
+    if (!isAdmin && !isQa) {
       const isCleaner = user.roleId === '4' && service.userId === user.id;
-      const isSupervisor =
-        user.roleId === '6' && service.community?.supervisorUserId === user.id;
 
-      if (!isCleaner && !isSupervisor) {
-        throw new ForbiddenException('Chat is only available to the assigned cleaner and supervisor.');
+      if (!isCleaner) {
+        throw new ForbiddenException('Chat is only available to the assigned cleaner, QA, or admin.');
       }
     }
 
