@@ -70,6 +70,7 @@ export class ServiceChatService {
   async getChatHistory(serviceId: string, user: UsersEntity): Promise<ServiceChatHistoryDto> {
     const service = await this.getServiceForChat(serviceId, user);
     const isAdmin = user?.roleId === '1';
+    const isQa = user?.roleId === '7';
     const isExpired = this.isServiceExpired(service.date);
 
     if (isExpired) {
@@ -103,7 +104,7 @@ export class ServiceChatService {
     return {
       serviceId,
       statusId: service.statusId,
-      canSend: isExpired ? false : isAdmin || isChatOpenStatus(service.statusId),
+      canSend: isExpired ? false : isAdmin || isQa || isChatOpenStatus(service.statusId),
       messages: messages.map((message) => this.toMessageDto(message)),
     };
   }
@@ -126,7 +127,8 @@ export class ServiceChatService {
     }
 
     const isAdmin = user?.roleId === '1';
-    if (!isAdmin && !isChatOpenStatus(service.statusId)) {
+    const isQa = user?.roleId === '7';
+    if (!isAdmin && !isQa && !isChatOpenStatus(service.statusId)) {
       throw new ForbiddenException('Chat is closed for this service status.');
     }
 
