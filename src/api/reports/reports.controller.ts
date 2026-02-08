@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseDatePipe, Res, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseDatePipe, Res, Query, NotFoundException } from '@nestjs/common';
 import archiver from 'archiver';
 
 import { Response } from 'express';
@@ -85,5 +85,17 @@ export class ReportsController {
     response.setHeader('Content-Type', 'application/pdf');
     pdfDoc.pipe(response);
     pdfDoc.end();
+  }
+
+  @Get('/cleaner/:token')
+  async reportByCleanerToken(@Res() response: Response, @Param('token') token: string) {
+    const result = await this.reportsService.reportByCleanerToken(token);
+    if (!result) {
+      throw new NotFoundException('Report link is invalid or expired.');
+    }
+
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+    response.send(result.buffer);
   }
 }

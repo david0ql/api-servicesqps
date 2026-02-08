@@ -1,15 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cron } from '@nestjs/schedule';
+import { randomUUID } from 'crypto';
 
 import moment from 'moment';
 import type { Content, StyleDictionary, TDocumentDefinitions, BufferOptions, CustomTableLayout } from 'pdfmake/interfaces';
 import { CostsEntity } from '../../entities/costs.entity';
 import { RecurringCostsEntity } from '../../entities/recurring_costs.entity';
-import { Between, Repository } from 'typeorm';
+import { Between, In, Repository } from 'typeorm';
 import { ServicesEntity } from '../../entities/services.entity';
 import { ExtrasByServiceEntity } from '../../entities/extras_by_service.entity';
 import { PrinterService } from '../../printer/printer.service';
 import { CommunitiesEntity } from '../../entities/communities.entity';
+import { UsersEntity } from '../../entities/users.entity';
+import { CleanerReportLinksEntity } from '../../entities/cleaner_report_links.entity';
+import { TextBeeService } from '../../textbee/textbee.service';
+import envVars from '../../config/env';
 const PdfPrinter = require('pdfmake');
 
 const styles: StyleDictionary = {
@@ -81,6 +87,7 @@ const customTableLayouts: Record<string, CustomTableLayout> = {
 
 @Injectable()
 export class ReportsService {
+  private readonly logger = new Logger(ReportsService.name);
 
   private readonly hugoComission = 0.2;
   private readonly felixComission = 0.6;
@@ -96,6 +103,11 @@ export class ReportsService {
     private readonly servicesRepository: Repository<ServicesEntity>,
     @InjectRepository(CommunitiesEntity)
     private readonly communityRepository: Repository<CommunitiesEntity>,
+    @InjectRepository(UsersEntity)
+    private readonly usersRepository: Repository<UsersEntity>,
+    @InjectRepository(CleanerReportLinksEntity)
+    private readonly cleanerReportLinksRepository: Repository<CleanerReportLinksEntity>,
+    private readonly textBeeService: TextBeeService,
   ) { }
 
   async reporteGeneral(startDate: string, endDate: string) {
@@ -560,6 +572,54 @@ export class ReportsService {
       zipName: `cleaner-reports-${startOfWeek}-to-${endOfWeek}.zip`,
       files,
     };
+  }
+
+  @Cron('0 9 * * 1', { name: 'cleaner-weekly-reports' })
+  async sendWeeklyCleanerReports() {
+    if (!envVars.ENABLE_SMS) {
+      this.logger.log('Weekly cleaner reports skipped (ENABLE_SMS=false).');
+      return;
+    }
+
+    const { startOfWeek, endOfWeek } = this.getPreviousWeekRange();
+
+    const rawCleanerIds = await this.servicesRepository
+      .createQueryBuilder('services')
+      .select('DISTINCT services.userId', 'userId')
+      .where('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek })
+      .andWhere('services.userId IS NOT NULL')
+      .getRawMany<{ userId: string }>();
+
+    const cleanerIds = rawCleanerIds.map(row => row.userId).filter(Boolean);
+    if (!cleanerIds.length) {
+      this.logger.log('Weekly cleaner reports: no services found for the previous week.');
+      return;
+    }
+
+    const cleaners = await this.usersRepository.find({
+      where: { id: In(cleanerIds), roleId: '4' },
+      select: ['id', 'name', 'phoneNumber', 'roleId'],
+    });
+
+    const startLabel = moment(startOfWeek).format('MM/DD/YYYY');
+    const endLabel = moment(endOfWeek).format('MM/DD/YYYY');
+
+    await Promise.all(
+      cleaners.map(async (cleaner) => {
+        if (!cleaner.phoneNumber) {
+          return;
+        }
+
+        const link = await this.createCleanerReportLink(cleaner.id, startOfWeek, endOfWeek);
+        const message = `Services QPS: Your payment report for ${startLabel} to ${endLabel} is ready: ${link}`;
+
+        try {
+          await this.textBeeService.sendSMS(cleaner.phoneNumber, message);
+        } catch (error) {
+          this.logger.warn(`Failed to send weekly report SMS to ${cleaner.id}`);
+        }
+      }),
+    );
   }
 
   async costosSemana(startDate: string, endDate: string) {
@@ -1028,5 +1088,78 @@ export class ReportsService {
       doc.on('error', reject);
       doc.end();
     });
+  }
+
+  private getPreviousWeekRange() {
+    const startOfWeek = moment().startOf('isoWeek').subtract(7, 'days').format('YYYY-MM-DD');
+    const endOfWeek = moment().endOf('isoWeek').subtract(7, 'days').format('YYYY-MM-DD');
+    return { startOfWeek, endOfWeek };
+  }
+
+  private async createCleanerReportLink(userId: string, startDate: string, endDate: string) {
+    const token = randomUUID();
+    const expiresAt = moment().add(7, 'days').toDate();
+
+    await this.cleanerReportLinksRepository.save({
+      id: token,
+      userId,
+      startDate,
+      endDate,
+      expiresAt,
+    });
+
+    const baseUrl = (envVars.REPORTS_PUBLIC_BASE_URL || '').replace(/\/$/, '');
+    return `${baseUrl}/reports/cleaner/${token}`;
+  }
+
+  async reportByCleanerToken(token: string): Promise<{ fileName: string; buffer: Buffer } | null> {
+    const link = await this.cleanerReportLinksRepository.findOne({
+      where: { id: token },
+    });
+    if (!link) {
+      return null;
+    }
+
+    if (moment(link.expiresAt).isBefore(moment())) {
+      return null;
+    }
+
+    const cleaner = await this.usersRepository.findOne({
+      where: { id: link.userId },
+      select: ['id', 'name'],
+    });
+    if (!cleaner) {
+      return null;
+    }
+
+    const services = await this.servicesRepository
+      .createQueryBuilder('services')
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .leftJoinAndSelect('services.user', 'user')
+      .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .where('services.userId = :userId', { userId: link.userId })
+      .andWhere('services.date BETWEEN :startDate AND :endDate', {
+        startDate: link.startDate,
+        endDate: link.endDate,
+      })
+      .getMany();
+
+    const today = moment();
+    const cleanerName = cleaner.name || 'Cleaner';
+    const result = await this.buildCleanerReportBuffer(
+      cleanerName,
+      services,
+      link.startDate,
+      link.endDate,
+      today,
+    );
+
+    return {
+      fileName: result.fileName,
+      buffer: result.buffer,
+    };
   }
 }

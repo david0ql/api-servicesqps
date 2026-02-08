@@ -16,6 +16,7 @@ interface EnvVars {
     EXPO_ACCESS_TOKEN: string
     ENABLE_NOTIFICATIONS: boolean
     ENABLE_SMS: boolean
+    REPORTS_PUBLIC_BASE_URL: string
 }
 
 const envSchema = joi
@@ -33,6 +34,7 @@ const envSchema = joi
     EXPO_ACCESS_TOKEN: joi.string().required(),
     ENABLE_NOTIFICATIONS: joi.boolean().default(false),
     ENABLE_SMS: joi.boolean().default(false),
+    REPORTS_PUBLIC_BASE_URL: joi.string().default('http://localhost:3000'),
   })
   .unknown(true)
   .required();
