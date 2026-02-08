@@ -75,8 +75,13 @@ export class ReportsController {
   }
 
   @Get('/community/:communityId')
-  async reportByCommunity(@Res() response: Response, @Param('communityId') communityId: string) {
-    const pdfDoc = await this.reportsService.reportByCommunity(communityId);
+  async reportByCommunity(
+    @Res() response: Response,
+    @Param('communityId') communityId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const pdfDoc = await this.reportsService.reportByCommunity(communityId, startDate, endDate);
     response.setHeader('Content-Type', 'application/pdf');
     pdfDoc.pipe(response);
     pdfDoc.end();

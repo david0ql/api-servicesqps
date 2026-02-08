@@ -636,11 +636,41 @@ export class ReportsService {
     return doc;
   }
 
-  async reportByCommunity(communityId: string) {
+  private parseReportDate(value?: string): moment.Moment | null {
+    if (!value) return null;
+
+    const formats = [
+      'MM-DD-YYYY',
+      'M-DD-YYYY',
+      'MM-D-YYYY',
+      'M-D-YYYY',
+      'MM/DD/YYYY',
+      'M/DD/YYYY',
+      'MM/D/YYYY',
+      'M/D/YYYY',
+      'YYYY-MM-DD',
+    ];
+    const parsed = moment(value, formats, true);
+    if (parsed.isValid()) return parsed;
+
+    const fallback = moment(value);
+    return fallback.isValid() ? fallback : null;
+  }
+
+  async reportByCommunity(communityId: string, startDate?: string, endDate?: string) {
     const today = moment();
     const currentYear = today.year();
-    const startOfYear = moment().startOf('year').format('YYYY-MM-DD');
-    const endOfYear = moment().endOf('year').format('YYYY-MM-DD');
+
+    const parsedStart = this.parseReportDate(startDate);
+    const parsedEnd = this.parseReportDate(endDate);
+    const hasRange = Boolean(parsedStart && parsedEnd);
+
+    const startOfRange = hasRange
+      ? parsedStart!.format('YYYY-MM-DD')
+      : moment().startOf('year').format('YYYY-MM-DD');
+    const endOfRange = hasRange
+      ? parsedEnd!.format('YYYY-MM-DD')
+      : moment().endOf('year').format('YYYY-MM-DD');
 
     const queryBuilder = this.servicesRepository.createQueryBuilder('services');
 
@@ -651,7 +681,7 @@ export class ReportsService {
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
       .where('services.community_id = :communityId', { communityId })
-      .andWhere('services.date BETWEEN :startOfYear AND :endOfYear', { startOfYear, endOfYear });
+      .andWhere('services.date BETWEEN :startOfRange AND :endOfRange', { startOfRange, endOfRange });
 
     const services = await queryBuilder.getMany();
 
@@ -775,6 +805,10 @@ export class ReportsService {
 
     const community = await this.communityRepository.findOne({ where: { id: communityId } });
 
+    const reportRangeLabel = hasRange
+      ? `${parsedStart!.format('MM/DD/YYYY')} to ${parsedEnd!.format('MM/DD/YYYY')}`
+      : `${currentYear}`;
+
     const docDefinition: TDocumentDefinitions = {
       styles,
       pageMargins: [40, 120, 40, 60],
@@ -784,7 +818,7 @@ export class ReportsService {
         columns: [
           logo,
           {
-            text: `Service Report - ${community?.communityName ?? 'Community'} - ${currentYear}`,
+            text: `Service Report - ${community?.communityName ?? 'Community'} - ${reportRangeLabel}`,
             style: 'header',
           },
           {
@@ -831,7 +865,7 @@ export class ReportsService {
 
     const doc = this.printerService.createPDF(docDefinition);
 
-    doc.info.Title = `Service Report - ${community?.communityName ?? 'Community'} - ${currentYear}`;
+    doc.info.Title = `Service Report - ${community?.communityName ?? 'Community'} - ${reportRangeLabel}`;
 
     return doc;
   }

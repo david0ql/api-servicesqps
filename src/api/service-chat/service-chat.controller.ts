@@ -60,7 +60,11 @@ export class ServiceChatController {
     FileInterceptor('file', {
       storage: diskStorage({
         destination: (req, file, cb) => {
-          const serviceId = req.params?.serviceId;
+          const rawServiceId = req.params?.serviceId;
+          const serviceId = Array.isArray(rawServiceId) ? rawServiceId[0] : rawServiceId;
+          if (!serviceId) {
+            return cb(new Error('Missing serviceId'), '');
+          }
           const targetPath = join(process.cwd(), 'uploads', 'service-chat', serviceId);
           mkdirSync(targetPath, { recursive: true });
           cb(null, targetPath);
