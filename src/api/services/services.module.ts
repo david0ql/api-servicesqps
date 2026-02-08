@@ -12,6 +12,7 @@ import { CommunitiesEntity } from '../../entities/communities.entity';
 @Module({
   controllers: [ServicesController],
   providers: [ServicesService],
+  exports: [ServicesService],
   imports: [
     TypeOrmModule.forFeature([ServicesEntity, ExtrasByServiceEntity, UsersEntity, CommunitiesEntity]),
     NotificationsModule,

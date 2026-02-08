@@ -9,10 +9,12 @@ import { ServiceChatService } from './service-chat.service';
 import { ServiceChatMessagesEntity } from '../../entities/service_chat_messages.entity';
 import { ServicesEntity } from '../../entities/services.entity';
 import { UsersEntity } from '../../entities/users.entity';
+import { NotificationsModule } from '../../push-notification/push-notification.module';
 
 @Module({
   imports: [
     AuthModule,
+    NotificationsModule,
     TypeOrmModule.forFeature([
       ServiceChatMessagesEntity,
       ServicesEntity,

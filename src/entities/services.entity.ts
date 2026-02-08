@@ -18,6 +18,7 @@ import { ManyToOne, OneToMany } from "typeorm";
 @Index("status_id", ["statusId"], {})
 @Index("type_id", ["typeId"], {})
 @Index("user_id", ["userId"], {})
+@Index("recurring_service_id", ["recurringServiceId"], {})
 @Entity("services", { schema: "services_dbqa" })
 export class ServicesEntity {
   @PrimaryGeneratedColumn({ type: "bigint", name: "id", unsigned: true })
@@ -52,6 +53,9 @@ export class ServicesEntity {
 
   @Column("bigint", { name: "user_id", nullable: true, unsigned: true })
   userId: string | null;
+
+  @Column("bigint", { name: "recurring_service_id", nullable: true, unsigned: true })
+  recurringServiceId: string | null;
 
   @Column("timestamp", {
     name: "created_at",

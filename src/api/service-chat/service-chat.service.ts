@@ -2,16 +2,18 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import moment from 'moment';
 
 import { isChatOpenStatus } from '../../constants/service-status.enum';
 import { ServiceChatMessagesEntity } from '../../entities/service_chat_messages.entity';
 import { ServicesEntity } from '../../entities/services.entity';
 import { UsersEntity } from '../../entities/users.entity';
+import { PushNotificationsService } from '../../push-notification/push-notification.service';
 
 export interface ServiceChatUser {
   id: string;
@@ -45,9 +47,20 @@ export interface ServiceChatAttachment {
   name: string | null;
 }
 
+export interface ServiceChatNotifyPayload {
+  serviceId: string;
+  senderId: string;
+  senderName: string;
+  message: string | null;
+  hasAttachment: boolean;
+  communityName: string | null;
+  unitNumber: string | null;
+}
+
 const CHAT_ALLOWED_ROLES = new Set<string>(['1', '4', '7']);
 const MAX_MESSAGE_LENGTH = 2000;
 const CHAT_RETENTION_MONTHS = 3;
+const MAX_NOTIFICATION_LENGTH = 140;
 const SYSTEM_USER: ServiceChatUser = {
   id: '0',
   name: 'System',
@@ -56,11 +69,16 @@ const SYSTEM_USER: ServiceChatUser = {
 
 @Injectable()
 export class ServiceChatService {
+  private readonly logger = new Logger(ServiceChatService.name);
+
   constructor(
     @InjectRepository(ServiceChatMessagesEntity)
     private readonly chatMessagesRepository: Repository<ServiceChatMessagesEntity>,
     @InjectRepository(ServicesEntity)
     private readonly servicesRepository: Repository<ServicesEntity>,
+    @InjectRepository(UsersEntity)
+    private readonly usersRepository: Repository<UsersEntity>,
+    private readonly pushNotificationsService: PushNotificationsService,
   ) {}
 
   roomName(serviceId: string) {
@@ -153,7 +171,7 @@ export class ServiceChatService {
 
     const savedMessage = await this.chatMessagesRepository.save(chatMessage);
 
-    return {
+    const response: ServiceChatMessageDto = {
       id: savedMessage.id,
       serviceId: savedMessage.serviceId,
       userId: savedMessage.userId,
@@ -165,6 +183,12 @@ export class ServiceChatService {
       createdAt: savedMessage.createdAt,
       user,
     };
+
+    this.notifyChatParticipants(service, user, response).catch((error) => {
+      this.logger.error('Failed to notify chat participants', error);
+    });
+
+    return response;
   }
 
   async assertChatAccess(serviceId: string, user: ServiceChatUser) {
@@ -194,6 +218,44 @@ export class ServiceChatService {
       path: message.attachmentPath,
       mime: message.attachmentMime,
       name: message.attachmentName,
+    };
+  }
+
+  async getNotificationRecipientIds(serviceId: string, senderId: string): Promise<string[]> {
+    const service = await this.servicesRepository.findOne({
+      where: { id: serviceId },
+    });
+
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${serviceId} not found`);
+    }
+
+    const recipients = await this.resolveChatRecipients(service, senderId);
+    return recipients.map((recipient) => recipient.id);
+  }
+
+  async buildNotifyPayload(
+    serviceId: string,
+    sender: ServiceChatUser,
+    message: ServiceChatMessageDto,
+  ): Promise<ServiceChatNotifyPayload | null> {
+    const service = await this.servicesRepository.findOne({
+      where: { id: serviceId },
+      relations: ['community'],
+    });
+
+    if (!service) {
+      return null;
+    }
+
+    return {
+      serviceId,
+      senderId: sender.id,
+      senderName: sender.name,
+      message: message.message ?? null,
+      hasAttachment: Boolean(message.attachmentPath),
+      communityName: service.community?.communityName ?? null,
+      unitNumber: service.unitNumber ?? null,
     };
   }
 
@@ -256,5 +318,103 @@ export class ServiceChatService {
     }
 
     return parsedDate.isBefore(moment().subtract(CHAT_RETENTION_MONTHS, 'months'), 'day');
+  }
+
+  private async notifyChatParticipants(
+    service: ServicesEntity,
+    sender: ServiceChatUser,
+    message: ServiceChatMessageDto,
+  ) {
+    const recipients = await this.resolveChatRecipients(service, sender.id);
+    if (recipients.length === 0) {
+      return;
+    }
+
+    const notification = this.buildNotificationContent(service, sender, message);
+    const tokens = recipients
+      .map((recipient) => recipient.token)
+      .filter((token) => typeof token === 'string' && token.trim() !== '') as string[];
+    const usersWithPhone = recipients.filter(
+      (recipient) => recipient.phoneNumber && recipient.phoneNumber.trim() !== '',
+    );
+
+    if (tokens.length === 0 && usersWithPhone.length === 0) {
+      return;
+    }
+
+    await this.pushNotificationsService.sendNotification({
+      title: notification.title,
+      body: notification.body,
+      data: notification.data,
+      sound: 'default',
+      tokensNotification: {
+        tokens: Array.from(new Set(tokens)),
+        users: usersWithPhone,
+      },
+    });
+  }
+
+  private buildNotificationContent(
+    service: ServicesEntity,
+    sender: ServiceChatUser,
+    message: ServiceChatMessageDto,
+  ) {
+    const communityName = service.community?.communityName ?? 'Service';
+    const unitLabel = service.unitNumber?.trim() ? ` · Unit ${service.unitNumber}` : '';
+    const locationLabel = `${communityName}${unitLabel}`;
+    const preview = this.truncateNotificationText(
+      message.message?.replace(/\s+/g, ' ').trim() || '',
+    );
+
+    const body = preview
+      ? `New message from ${sender.name} (${locationLabel}): ${preview}`
+      : `New ${message.attachmentPath ? 'attachment' : 'message'} from ${sender.name} (${locationLabel}).`;
+
+    return {
+      title: 'New chat message',
+      body,
+      data: {
+        serviceId: service.id,
+        context: 'service-chat',
+      },
+    };
+  }
+
+  private truncateNotificationText(value: string) {
+    if (!value) {
+      return '';
+    }
+
+    if (value.length <= MAX_NOTIFICATION_LENGTH) {
+      return value;
+    }
+
+    return `${value.slice(0, MAX_NOTIFICATION_LENGTH - 3)}...`;
+  }
+
+  private async resolveChatRecipients(service: ServicesEntity, senderId: string) {
+    const adminsAndQa = await this.usersRepository.find({
+      where: { roleId: In(['1', '7']) },
+      select: ['id', 'name', 'roleId', 'token', 'phoneNumber'],
+    });
+
+    const assignedCleaner = service.userId
+      ? await this.usersRepository.findOne({
+          where: { id: service.userId },
+          select: ['id', 'name', 'roleId', 'token', 'phoneNumber'],
+        })
+      : null;
+
+    const recipients = [
+      ...(assignedCleaner ? [assignedCleaner] : []),
+      ...adminsAndQa,
+    ].filter((recipient) => recipient.id !== senderId);
+
+    const uniqueRecipients = new Map<string, UsersEntity>();
+    for (const recipient of recipients) {
+      uniqueRecipients.set(recipient.id, recipient);
+    }
+
+    return Array.from(uniqueRecipients.values());
   }
 }

@@ -110,6 +110,7 @@ export class ServiceChatController {
     );
 
     this.serviceChatGateway.broadcastMessage(serviceId, createdMessage);
+    this.serviceChatGateway.notifyRecipients(createdMessage).catch(() => null);
 
     return createdMessage;
   }

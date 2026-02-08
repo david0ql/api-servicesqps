@@ -12,6 +12,7 @@ import { TypesModule } from './api/types/types.module';
 import { UsersModule } from './api/users/users.module';
 import { CostsModule } from './api/costs/costs.module';
 import { RecurringCostsModule } from './api/recurring-costs/recurring-costs.module';
+import { RecurringServicesModule } from './api/recurring-services/recurring-services.module';
 import { AuthModule } from './api/auth/auth.module';
 import { ReportsModule } from './api/reports/reports.module';
 import { PrinterModule } from './printer/printer.module';
@@ -43,6 +44,7 @@ import envVars from './config/env';
     CommunitiesModule,
     CostsModule,
     RecurringCostsModule,
+    RecurringServicesModule,
     ExtrasModule,
     StatusesModule,
     TypesModule,
