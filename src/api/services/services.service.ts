@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In, Brackets } from 'typeorm';
 import moment from 'moment';
@@ -327,6 +327,10 @@ export class ServicesService {
 
   async create(createServiceDto: CreateServiceDto) {
     const { extraId, ...createServiceDtoCopy } = createServiceDto;
+
+    if (createServiceDto.userId) {
+      await this.assertAssignableUser(createServiceDto.userId);
+    }
     
     // Log detallado del DTO
     console.log('=== Create Service DTO Details ===');
@@ -449,6 +453,9 @@ export class ServicesService {
   }
 
   async update(id: string, updateServiceDto: UpdateServiceDto) {
+    if (updateServiceDto.userId) {
+      await this.assertAssignableUser(updateServiceDto.userId);
+    }
     const service = await this.servicesRepository.preload({
       id,
       ...updateServiceDto,
@@ -649,5 +656,20 @@ export class ServicesService {
         users: usersWithPhone, // Enviamos todos los usuarios con teléfono para SMS
       },
     });
+  }
+
+  private async assertAssignableUser(userId: string) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'roleId'],
+    });
+
+    if (!user) {
+      throw new BadRequestException('Assigned user not found.');
+    }
+
+    if (user.roleId !== '4' && user.roleId !== '7') {
+      throw new BadRequestException('Assigned user must be a Cleaner or QA.');
+    }
   }
 }
