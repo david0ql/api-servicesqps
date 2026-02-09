@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, ParseDatePipe, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseDatePipe, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -42,6 +42,13 @@ export class ServicesController {
   @UseGuards(AuthGuard('jwt'))
   findAll(@Query() pageOptionsDto: PageOptionsDto): Promise<PageDto<ServicesDashboard>> {
     return this.servicesService.findAll(pageOptionsDto);
+  }
+
+  @Get('/active-assignees')
+  @UseGuards(AuthGuard('jwt'))
+  getActiveAssignees(@Query('months') months?: string) {
+    const parsedMonths = months ? Number.parseInt(months, 10) : undefined;
+    return this.servicesService.getActiveAssignees(parsedMonths ?? 3);
   }
 
   @Get('/by-status/:statusID')

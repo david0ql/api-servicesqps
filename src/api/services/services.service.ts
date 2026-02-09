@@ -560,6 +560,31 @@ export class ServicesService {
     return this.servicesRepository.remove(service);
   }
 
+  async getActiveAssignees(months: number = 3) {
+    const sanitizedMonths = Number.isFinite(months) && months > 0 ? months : 3;
+    const since = moment().subtract(sanitizedMonths, 'months').format('YYYY-MM-DD');
+
+    const rows = await this.servicesRepository
+      .createQueryBuilder('services')
+      .leftJoin('services.user', 'user')
+      .select('DISTINCT user.id', 'id')
+      .where('services.userId IS NOT NULL')
+      .andWhere('services.date >= :since', { since })
+      .andWhere('user.roleId IN (:...roles)', { roles: ['4', '7'] })
+      .getRawMany();
+
+    const userIds = rows
+      .map((row) => row.id)
+      .filter((id) => id !== null && id !== undefined)
+      .map((id) => String(id));
+
+    return {
+      months: sanitizedMonths,
+      since,
+      userIds,
+    };
+  }
+
   private async notifyInterestedParticipants(
     service: ServicesEntity,
     notification: { body: string; title: string; data: any }
