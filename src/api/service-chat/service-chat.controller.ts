@@ -3,7 +3,7 @@ import {
   Body,
   Controller,
   Get,
-  HttpStatus,
+  Logger,
   NotFoundException,
   Param,
   Post,
@@ -15,7 +15,6 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
-  ParseFilePipeBuilder,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -40,6 +39,8 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024;
 @ApiTags('service-chat')
 @Controller('service-chats')
 export class ServiceChatController {
+  private readonly logger = new Logger(ServiceChatController.name);
+
   constructor(
     private readonly serviceChatService: ServiceChatService,
     private readonly serviceChatGateway: ServiceChatGateway,
@@ -79,18 +80,28 @@ export class ServiceChatController {
   )
   async uploadEvidence(
     @Param('serviceId') serviceId: string,
-    @UploadedFile(
-      new ParseFilePipeBuilder()
-        .addMaxSizeValidator({ maxSize: MAX_FILE_SIZE })
-        .addFileTypeValidator({ fileType: /^(image|video)\// })
-        .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
-    )
-    file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File | undefined,
     @Body('message') message: string,
     @Request() req: any,
   ) {
+    const contentType = req.headers?.['content-type'] ?? '(no content-type)';
+
     if (!file) {
-      throw new BadRequestException('File is required.');
+      this.logger.warn(
+        `Evidence upload sin archivo: serviceId=${serviceId} Content-Type=${contentType}`,
+      );
+      throw new BadRequestException(
+        `File is required. Request Content-Type: ${contentType}`,
+      );
+    }
+
+    if (!/^(image|video)\//.test(file.mimetype)) {
+      this.logger.warn(
+        `Evidence upload tipo no permitido: mimetype=${file.mimetype} serviceId=${serviceId}`,
+      );
+      throw new BadRequestException(
+        `Invalid file type. Allowed: image/* or video/*. Received: ${file.mimetype}`,
+      );
     }
 
     const attachmentType = file.mimetype.startsWith('image/') ? 'image' : 'video';
