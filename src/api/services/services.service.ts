@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In, Brackets } from 'typeorm';
 import moment from 'moment';
@@ -452,10 +452,34 @@ export class ServicesService {
     };
   }
 
-  async update(id: string, updateServiceDto: UpdateServiceDto) {
+  async update(id: string, updateServiceDto: UpdateServiceDto, currentUser?: UsersEntity) {
+    const existingService = await this.servicesRepository.findOne({
+      where: { id },
+      select: ['id', 'userId', 'statusId'],
+    });
+
+    if (!existingService) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    if (currentUser?.roleId === '7') {
+      const isAssignedToCurrentUser = existingService.userId === currentUser.id;
+      const isStatusChange =
+        typeof updateServiceDto.statusId !== 'undefined' &&
+        updateServiceDto.statusId !== existingService.statusId;
+      const isReassignment =
+        typeof updateServiceDto.userId !== 'undefined' &&
+        updateServiceDto.userId !== existingService.userId;
+
+      if ((isStatusChange || isReassignment) && !isAssignedToCurrentUser) {
+        throw new ForbiddenException('QA users can only update services assigned to them.');
+      }
+    }
+
     if (updateServiceDto.userId) {
       await this.assertAssignableUser(updateServiceDto.userId);
     }
+
     const service = await this.servicesRepository.preload({
       id,
       ...updateServiceDto,

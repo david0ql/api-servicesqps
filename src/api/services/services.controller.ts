@@ -125,8 +125,8 @@ export class ServicesController {
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'))
-  update(@Param('id') id: string, @Body() updateServiceDto: UpdateServiceDto) {
-    return this.servicesService.update(id, updateServiceDto);
+  update(@Param('id') id: string, @Body() updateServiceDto: UpdateServiceDto, @Request() req: any) {
+    return this.servicesService.update(id, updateServiceDto, req.user.user);
   }
 
   @Delete(':id')
