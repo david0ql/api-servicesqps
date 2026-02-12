@@ -38,6 +38,12 @@ export class ServicesService {
     private readonly pushNotificationsService: PushNotificationsService,
   ) { }
 
+  private addActiveRecurringFilter(queryBuilder: any) {
+    return queryBuilder
+      .leftJoin('recurring_services', 'recurring', 'recurring.id = services.recurring_service_id')
+      .andWhere('(services.recurringServiceId IS NULL OR recurring.is_active = 1)');
+  }
+
   async searchByWord(searchDto: SearchDto, pageOptionsDto: PageOptionsDto): Promise<PageDto<ServicesEntity>> {
     const searchedItemsByWord = this.servicesRepository.createQueryBuilder('services')
       .leftJoinAndSelect('services.community', 'community')
@@ -45,7 +51,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(searchedItemsByWord);
+    searchedItemsByWord
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -85,7 +93,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -115,7 +125,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -160,7 +172,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -182,7 +196,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -221,7 +237,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .where('services.userId = :userId', { userId })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
@@ -244,7 +262,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
@@ -294,7 +314,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
       .andWhere('services.statusId = :statusID', { statusID })
       .orderBy('services.createdAt', 'DESC')

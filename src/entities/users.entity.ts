@@ -51,6 +51,9 @@ export class UsersEntity {
   })
   updatedAt: Date;
 
+  @Column("tinyint", { name: "is_active", width: 1, default: () => "1" })
+  isActive: boolean;
+
   @OneToManyNoAction(() => CommunitiesEntity, (communitiesEntity) => communitiesEntity.supervisorUser)
   supervisedCommunities: CommunitiesEntity[];
 

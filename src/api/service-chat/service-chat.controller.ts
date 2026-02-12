@@ -32,6 +32,10 @@ import { ServiceChatGateway } from './service-chat.gateway';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UsersEntity } from '../../entities/users.entity';
 import { Repository } from 'typeorm';
+import { PageOptionsDto } from '../../dto/page-options.dto';
+import { ApiPaginatedResponse } from '../../decorators/api-paginated-response.decorator';
+import { PageDto } from '../../dto/page.dto';
+import { ServiceChatThreadDto } from './dto/service-chat-thread.dto';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -48,6 +52,16 @@ export class ServiceChatController {
     @InjectRepository(UsersEntity)
     private readonly usersRepository: Repository<UsersEntity>,
   ) {}
+
+  @Get('threads')
+  @ApiPaginatedResponse(ServiceChatThreadDto)
+  @UseGuards(AuthGuard('jwt'))
+  getThreads(
+    @Query() pageOptionsDto: PageOptionsDto,
+    @Request() req: any,
+  ): Promise<PageDto<ServiceChatThreadDto>> {
+    return this.serviceChatService.getChatThreads(pageOptionsDto, req.user.user);
+  }
 
   @Get(':serviceId')
   @UseGuards(AuthGuard('jwt'))

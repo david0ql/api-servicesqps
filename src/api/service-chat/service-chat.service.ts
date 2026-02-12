@@ -14,6 +14,10 @@ import { ServiceChatMessagesEntity } from '../../entities/service_chat_messages.
 import { ServicesEntity } from '../../entities/services.entity';
 import { UsersEntity } from '../../entities/users.entity';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
+import { PageDto } from '../../dto/page.dto';
+import { PageMetaDto } from '../../dto/page-meta.dto';
+import { PageOptionsDto } from '../../dto/page-options.dto';
+import { ServiceChatThreadDto } from './dto/service-chat-thread.dto';
 
 export interface ServiceChatUser {
   id: string;
@@ -257,6 +261,105 @@ export class ServiceChatService {
       communityName: service.community?.communityName ?? null,
       unitNumber: service.unitNumber ?? null,
     };
+  }
+
+  async getChatThreads(
+    pageOptionsDto: PageOptionsDto,
+    user: ServiceChatUser | UsersEntity,
+  ): Promise<PageDto<ServiceChatThreadDto>> {
+    const roleId = user?.roleId ?? '';
+    const canListAllChats = roleId === '1' || roleId === '7';
+    if (!canListAllChats) {
+      throw new ForbiddenException('Chat list is only available to QA and super admins.');
+    }
+
+    const cutoff = moment()
+      .subtract(CHAT_RETENTION_MONTHS, 'months')
+      .format('YYYY-MM-DD');
+
+    const totalRaw = await this.chatMessagesRepository
+      .createQueryBuilder('message')
+      .innerJoin(ServicesEntity, 'service', 'service.id = message.serviceId')
+      .where('service.date >= :cutoff', { cutoff })
+      .select('COUNT(DISTINCT message.serviceId)', 'count')
+      .getRawOne<{ count: string }>();
+
+    const totalCount = Number(totalRaw?.count ?? 0);
+
+    const lastMessageSubQuery = this.chatMessagesRepository
+      .createQueryBuilder('m')
+      .select('m.serviceId', 'serviceId')
+      .addSelect('MAX(m.id)', 'lastMessageId')
+      .groupBy('m.serviceId');
+
+    const rows = await this.servicesRepository
+      .createQueryBuilder('service')
+      .innerJoin(
+        `(${lastMessageSubQuery.getQuery()})`,
+        'last',
+        'last.serviceId = service.id',
+      )
+      .innerJoin(ServiceChatMessagesEntity, 'message', 'message.id = last.lastMessageId')
+      .leftJoin('service.community', 'community')
+      .leftJoin('service.user', 'cleaner')
+      .leftJoin('message.user', 'sender')
+      .where('service.date >= :cutoff', { cutoff })
+      .select('service.id', 'serviceId')
+      .addSelect('service.statusId', 'statusId')
+      .addSelect('service.date', 'date')
+      .addSelect('service.schedule', 'schedule')
+      .addSelect('community.communityName', 'communityName')
+      .addSelect('service.unitNumber', 'unitNumber')
+      .addSelect('cleaner.name', 'cleanerName')
+      .addSelect('message.id', 'lastMessageId')
+      .addSelect('message.userId', 'lastMessageUserId')
+      .addSelect('sender.name', 'lastMessageUserName')
+      .addSelect('message.message', 'lastMessageText')
+      .addSelect('message.attachmentType', 'lastMessageAttachmentType')
+      .addSelect('message.attachmentPath', 'lastMessageAttachmentPath')
+      .addSelect('message.createdAt', 'lastMessageCreatedAt')
+      .orderBy('message.createdAt', 'DESC')
+      .skip(pageOptionsDto.skip)
+      .take(pageOptionsDto.take)
+      .setParameters(lastMessageSubQuery.getParameters())
+      .getRawMany<{
+        serviceId: string;
+        statusId: string | null;
+        date: string;
+        schedule: string | null;
+        communityName: string | null;
+        unitNumber: string | null;
+        cleanerName: string | null;
+        lastMessageId: string;
+        lastMessageUserId: string | null;
+        lastMessageUserName: string | null;
+        lastMessageText: string | null;
+        lastMessageAttachmentType: string | null;
+        lastMessageAttachmentPath: string | null;
+        lastMessageCreatedAt: Date;
+      }>();
+
+    const data: ServiceChatThreadDto[] = rows.map((row) => ({
+      serviceId: row.serviceId,
+      statusId: row.statusId,
+      date: row.date,
+      schedule: row.schedule,
+      communityName: row.communityName,
+      unitNumber: row.unitNumber,
+      cleanerName: row.cleanerName,
+      lastMessage: {
+        id: row.lastMessageId,
+        userId: row.lastMessageUserId,
+        userName: row.lastMessageUserName,
+        message: row.lastMessageText,
+        hasAttachment: Boolean(row.lastMessageAttachmentPath),
+        attachmentType: row.lastMessageAttachmentType,
+        createdAt: row.lastMessageCreatedAt,
+      },
+    }));
+
+    const pageMetaDto = new PageMetaDto({ totalCount, pageOptionsDto });
+    return new PageDto(data, pageMetaDto);
   }
 
   private async getServiceForChat(serviceId: string, user: ServiceChatUser | UsersEntity) {

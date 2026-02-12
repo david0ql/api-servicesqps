@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import moment from 'moment';
 
 import { PageOptionsDto } from 'src/dto/page-options.dto';
@@ -73,14 +73,17 @@ export class RecurringServicesService {
       .leftJoinAndSelect('recurring.type', 'type')
       .leftJoinAndSelect('recurring.status', 'status')
       .leftJoinAndSelect('recurring.user', 'user')
+      .where('recurring.isActive = :isActive', { isActive: true })
+      .andWhere(new Brackets((qb) => {
+        qb.where('community.communityName LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('recurring.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('recurring.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('type.cleaningType LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('type.description LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      }))
       .orderBy('recurring.createdAt', pageOptionsDto.order)
       .skip(pageOptionsDto.skip)
-      .take(pageOptionsDto.take)
-      .where('community.communityName LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('recurring.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('recurring.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('type.cleaningType LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('type.description LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      .take(pageOptionsDto.take);
 
     const [items, totalCount] = await query.getManyAndCount();
     const pageMetaDto = new PageMetaDto({ totalCount, pageOptionsDto });
@@ -95,6 +98,7 @@ export class RecurringServicesService {
       .leftJoinAndSelect('recurring.type', 'type')
       .leftJoinAndSelect('recurring.status', 'status')
       .leftJoinAndSelect('recurring.user', 'user')
+      .where('recurring.isActive = :isActive', { isActive: true })
       .orderBy('recurring.createdAt', pageOptionsDto.order)
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take);
