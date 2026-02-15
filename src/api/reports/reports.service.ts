@@ -16,6 +16,7 @@ import { UsersEntity } from '../../entities/users.entity';
 import { CleanerReportLinksEntity } from '../../entities/cleaner_report_links.entity';
 import { TextBeeService } from '../../textbee/textbee.service';
 import envVars from '../../config/env';
+import { buildShareholderShares } from './shareholder-shares.util';
 const PdfPrinter = require('pdfmake');
 
 const styles: StyleDictionary = {
@@ -88,10 +89,6 @@ const customTableLayouts: Record<string, CustomTableLayout> = {
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
-
-  private readonly hugoComission = 0.2;
-  private readonly felixComission = 0.6;
-  private readonly felixSonComission = 0.2;
 
   constructor(
     private readonly printerService: PrinterService,
@@ -203,10 +200,7 @@ export class ReportsService {
     // Cálculo correcto del beneficio neto
     const netProfit = (totalServicePrice + totalExtrasPrice - totalCleanerSum - totalCosts);
     
-    // Aplicar porcentajes de comisión al beneficio neto
-    const totalHugoSum = netProfit * this.hugoComission;
-    const totalFelixSum = netProfit * this.felixComission;
-    const totalFelixSonSum = netProfit * this.felixSonComission;
+    const shareholderShares = buildShareholderShares(endOfWeek, netProfit);
 
     // Generar tabla agrupada por comunidad
     const tableBody = [
@@ -276,25 +270,15 @@ export class ReportsService {
     // Nueva tabla de comisiones con costos
     const comisionesTableBody = [
       ['Accionista', 'Porcentaje', 'Ganancia Neta'],
-      [
-        'Hugo',
-        '20%',
-        formatCurrency(totalHugoSum)
-      ],
-      [
-        'Felix',
-        '60%',
-        formatCurrency(totalFelixSum)
-      ],
-      [
-        'Felix hijo',
-        '20%',
-        formatCurrency(totalFelixSonSum)
-      ],
+      ...shareholderShares.map(share => ([
+        share.name,
+        `${Math.round(share.percentage * 100)}%`,
+        formatCurrency(share.amount),
+      ])),
       [
         'Total',
-        '100%',
-        formatCurrency(totalHugoSum + totalFelixSum + totalFelixSonSum)
+        `${Math.round(shareholderShares.reduce((sum, share) => sum + share.percentage, 0) * 100)}%`,
+        formatCurrency(shareholderShares.reduce((sum, share) => sum + share.amount, 0))
       ]
     ];
 
