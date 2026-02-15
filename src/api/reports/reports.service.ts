@@ -558,7 +558,7 @@ export class ReportsService {
     };
   }
 
-  @Cron('0 8 * * 1', { name: 'cleaner-weekly-reports' })
+  @Cron('0 8 * * 1', { name: 'cleaner-weekly-reports', timeZone: 'America/New_York' })
   async sendWeeklyCleanerReports() {
     if (!envVars.ENABLE_SMS) {
       this.logger.log('Weekly cleaner reports skipped (ENABLE_SMS=false).');
