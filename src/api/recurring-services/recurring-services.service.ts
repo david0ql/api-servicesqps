@@ -163,10 +163,9 @@ export class RecurringServicesService {
     return this.recurringServicesRepository.remove(recurringService);
   }
 
-  @Cron('0 0 * * 1', { name: 'recurring-services-weekly' })
+  @Cron('0 18 * * 0', { name: 'recurring-services-weekly' })
   async generateWeeklyServices() {
-    const weekStart = moment().startOf('isoWeek');
-    const weekEnd = moment().endOf('isoWeek');
+    const { weekStart, weekEnd } = this.getGenerationWindow();
 
     const recurringServices = await this.recurringServicesRepository.find({
       where: { isActive: true },
@@ -243,6 +242,12 @@ export class RecurringServicesService {
 
   private getNextWeekStart() {
     return moment().startOf('isoWeek').add(1, 'week');
+  }
+
+  private getGenerationWindow(referenceDate = moment()) {
+    const weekStart = moment(referenceDate).add(1, 'week').startOf('isoWeek');
+    const weekEnd = moment(weekStart).endOf('isoWeek');
+    return { weekStart, weekEnd };
   }
 
   private async assertAssignableUser(userId: string) {
