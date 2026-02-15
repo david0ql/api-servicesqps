@@ -163,7 +163,7 @@ export class RecurringServicesService {
     return this.recurringServicesRepository.remove(recurringService);
   }
 
-  @Cron('0 18 * * 0', { name: 'recurring-services-weekly' })
+  @Cron('0 18 * * 0', { name: 'recurring-services-weekly', timeZone: 'America/New_York' })
   async generateWeeklyServices() {
     const { weekStart, weekEnd } = this.getGenerationWindow();
 

@@ -24,6 +24,7 @@ export class ServiceChatCleanupService {
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT, {
     name: 'service-chat-cleanup',
+    timeZone: 'America/New_York',
   })
   async handleCleanup() {
     const cutoff = moment().subtract(CHAT_RETENTION_MONTHS, 'months').format('YYYY-MM-DD');
