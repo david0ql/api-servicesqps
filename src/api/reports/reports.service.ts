@@ -16,6 +16,7 @@ import { UsersEntity } from '../../entities/users.entity';
 import { CleanerReportLinksEntity } from '../../entities/cleaner_report_links.entity';
 import { TextBeeService } from '../../textbee/textbee.service';
 import envVars from '../../config/env';
+import { getTenantConfig } from '../../config/tenant-config';
 import { buildShareholderShares } from './shareholder-shares.util';
 const PdfPrinter = require('pdfmake');
 
@@ -38,8 +39,10 @@ const styles: StyleDictionary = {
   }
 }
 
+const tenantConfig = getTenantConfig(envVars.TENANT_ID);
+
 const logo: Content = {
-  image: 'src/assets/logo.png',
+  image: tenantConfig.reports.logoPath,
   width: 150,
   alignment: 'center',
 }
@@ -199,8 +202,13 @@ export class ReportsService {
     
     // Cálculo correcto del beneficio neto
     const netProfit = (totalServicePrice + totalExtrasPrice - totalCleanerSum - totalCosts);
-    
-    const shareholderShares = buildShareholderShares(endOfWeek, netProfit);
+
+    const shareholderShares = tenantConfig.reports.shareholderModel === 'fixed'
+      ? (tenantConfig.reports.fixedShareholders ?? []).map((shareholder) => ({
+          ...shareholder,
+          amount: netProfit * shareholder.percentage,
+        }))
+      : buildShareholderShares(endOfWeek, netProfit);
 
     // Generar tabla agrupada por comunidad
     const tableBody = [
@@ -267,20 +275,58 @@ export class ReportsService {
       { text: '', fillColor: '#acb3c1', color: null }
     ]);
 
-    // Nueva tabla de comisiones con costos
-    const comisionesTableBody = [
-      ['Accionista', 'Porcentaje', 'Ganancia Neta'],
-      ...shareholderShares.map(share => ([
-        share.name,
-        `${Math.round(share.percentage * 100)}%`,
-        formatCurrency(share.amount),
-      ])),
-      [
-        'Total',
-        `${Math.round(shareholderShares.reduce((sum, share) => sum + share.percentage, 0) * 100)}%`,
-        formatCurrency(shareholderShares.reduce((sum, share) => sum + share.amount, 0))
-      ]
-    ];
+    const payoutReserveSplit = tenantConfig.reports.payoutReserveSplit;
+
+    let comisionesTableBody: (string | number)[][];
+    let comisionesTableWidths: string[];
+
+    if (payoutReserveSplit) {
+      const sharesWithSplit = shareholderShares.map((share) => ({
+        ...share,
+        paymentAmount: share.amount * payoutReserveSplit.paymentRatio,
+        reserveAmount: share.amount * payoutReserveSplit.reserveRatio,
+      }));
+
+      comisionesTableBody = [
+        [
+          'Accionista',
+          'Porcentaje',
+          tenantConfig.reports.netProfitColumnLabel ?? 'Ganancia Neta',
+          `Pago (${Math.round(payoutReserveSplit.paymentRatio * 100)}%)`,
+          `Reservas (${Math.round(payoutReserveSplit.reserveRatio * 100)}%)`,
+        ],
+        ...sharesWithSplit.map((share) => ([
+          share.name,
+          `${(share.percentage * 100).toFixed(2)}%`,
+          formatCurrency(share.amount),
+          formatCurrency(share.paymentAmount),
+          formatCurrency(share.reserveAmount),
+        ])),
+        [
+          'Total',
+          '100%',
+          formatCurrency(sharesWithSplit.reduce((sum, share) => sum + share.amount, 0)),
+          formatCurrency(sharesWithSplit.reduce((sum, share) => sum + share.paymentAmount, 0)),
+          formatCurrency(sharesWithSplit.reduce((sum, share) => sum + share.reserveAmount, 0)),
+        ],
+      ];
+      comisionesTableWidths = ['*', 'auto', 'auto', 'auto', 'auto'];
+    } else {
+      comisionesTableBody = [
+        ['Accionista', 'Porcentaje', 'Ganancia Neta'],
+        ...shareholderShares.map((share) => ([
+          share.name,
+          `${Math.round(share.percentage * 100)}%`,
+          formatCurrency(share.amount),
+        ])),
+        [
+          'Total',
+          `${Math.round(shareholderShares.reduce((sum, share) => sum + share.percentage, 0) * 100)}%`,
+          formatCurrency(shareholderShares.reduce((sum, share) => sum + share.amount, 0)),
+        ],
+      ];
+      comisionesTableWidths = ['*', 'auto', 'auto'];
+    }
 
     const costosTableBody = [
       ['Date', 'Description', 'Amount'],
@@ -336,7 +382,7 @@ export class ReportsService {
           layout: 'customLayout01',
           table: {
             headerRows: 1,
-            widths: ['*', 'auto', 'auto'],
+            widths: comisionesTableWidths,
             body: comisionesTableBody
           }
         },
