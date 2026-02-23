@@ -16,6 +16,8 @@ import { UsersEntity } from '../../entities/users.entity';
 import { CleanerReportLinksEntity } from '../../entities/cleaner_report_links.entity';
 import { TextBeeService } from '../../textbee/textbee.service';
 import envVars from '../../config/env';
+import { getTenantConfig } from '../../config/tenant-config';
+import { buildShareholderShares } from './shareholder-shares.util';
 const PdfPrinter = require('pdfmake');
 
 const styles: StyleDictionary = {
@@ -37,8 +39,10 @@ const styles: StyleDictionary = {
   }
 }
 
+const tenantConfig = getTenantConfig(envVars.TENANT_ID);
+
 const logo: Content = {
-  image: 'src/assets/logo.png',
+  image: tenantConfig.reports.logoPath,
   width: 150,
   alignment: 'center',
 }
@@ -88,9 +92,6 @@ const customTableLayouts: Record<string, CustomTableLayout> = {
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
-  private readonly accionista1Comission = 0.3333;
-  private readonly accionista2Comission = 0.3333;
-  private readonly accionista3Comission = 0.3334; // Ajuste para completar 100%
 
   constructor(
     private readonly printerService: PrinterService,
@@ -201,19 +202,13 @@ export class ReportsService {
     
     // Cálculo correcto del beneficio neto
     const netProfit = (totalServicePrice + totalExtrasPrice - totalCleanerSum - totalCosts);
-    
-    // Mantener modelo de VentPro: 3 accionistas con 33.33 / 33.33 / 33.34
-    const totalAccionista1Sum = netProfit * this.accionista1Comission;
-    const totalAccionista2Sum = netProfit * this.accionista2Comission;
-    const totalAccionista3Sum = netProfit * this.accionista3Comission;
 
-    // Distribución VentPro: 60% pago / 40% reserva
-    const accionista1Pago = totalAccionista1Sum * 0.6;
-    const accionista1Reserva = totalAccionista1Sum * 0.4;
-    const accionista2Pago = totalAccionista2Sum * 0.6;
-    const accionista2Reserva = totalAccionista2Sum * 0.4;
-    const accionista3Pago = totalAccionista3Sum * 0.6;
-    const accionista3Reserva = totalAccionista3Sum * 0.4;
+    const shareholderShares = tenantConfig.reports.shareholderModel === 'fixed'
+      ? (tenantConfig.reports.fixedShareholders ?? []).map((shareholder) => ({
+          ...shareholder,
+          amount: netProfit * shareholder.percentage,
+        }))
+      : buildShareholderShares(endOfWeek, netProfit);
 
     // Generar tabla agrupada por comunidad
     const tableBody = [
@@ -280,38 +275,58 @@ export class ReportsService {
       { text: '', fillColor: '#acb3c1', color: null }
     ]);
 
-    // Tabla de comisiones VentPro (33% + desglose 60/40)
-    const comisionesTableBody = [
-      ['Accionista', 'Porcentaje', 'Ganancia Neta (33.33%)', 'Pago (60%)', 'Reservas (40%)'],
-      [
-        'Accionista 1',
-        '33.33%',
-        formatCurrency(totalAccionista1Sum),
-        formatCurrency(accionista1Pago),
-        formatCurrency(accionista1Reserva),
-      ],
-      [
-        'Accionista 2',
-        '33.33%',
-        formatCurrency(totalAccionista2Sum),
-        formatCurrency(accionista2Pago),
-        formatCurrency(accionista2Reserva),
-      ],
-      [
-        'Accionista 3',
-        '33.34%',
-        formatCurrency(totalAccionista3Sum),
-        formatCurrency(accionista3Pago),
-        formatCurrency(accionista3Reserva),
-      ],
-      [
-        'Total',
-        '100%',
-        formatCurrency(totalAccionista1Sum + totalAccionista2Sum + totalAccionista3Sum),
-        formatCurrency(accionista1Pago + accionista2Pago + accionista3Pago),
-        formatCurrency(accionista1Reserva + accionista2Reserva + accionista3Reserva),
-      ],
-    ];
+    const payoutReserveSplit = tenantConfig.reports.payoutReserveSplit;
+
+    let comisionesTableBody: (string | number)[][];
+    let comisionesTableWidths: string[];
+
+    if (payoutReserveSplit) {
+      const sharesWithSplit = shareholderShares.map((share) => ({
+        ...share,
+        paymentAmount: share.amount * payoutReserveSplit.paymentRatio,
+        reserveAmount: share.amount * payoutReserveSplit.reserveRatio,
+      }));
+
+      comisionesTableBody = [
+        [
+          'Accionista',
+          'Porcentaje',
+          tenantConfig.reports.netProfitColumnLabel ?? 'Ganancia Neta',
+          `Pago (${Math.round(payoutReserveSplit.paymentRatio * 100)}%)`,
+          `Reservas (${Math.round(payoutReserveSplit.reserveRatio * 100)}%)`,
+        ],
+        ...sharesWithSplit.map((share) => ([
+          share.name,
+          `${(share.percentage * 100).toFixed(2)}%`,
+          formatCurrency(share.amount),
+          formatCurrency(share.paymentAmount),
+          formatCurrency(share.reserveAmount),
+        ])),
+        [
+          'Total',
+          '100%',
+          formatCurrency(sharesWithSplit.reduce((sum, share) => sum + share.amount, 0)),
+          formatCurrency(sharesWithSplit.reduce((sum, share) => sum + share.paymentAmount, 0)),
+          formatCurrency(sharesWithSplit.reduce((sum, share) => sum + share.reserveAmount, 0)),
+        ],
+      ];
+      comisionesTableWidths = ['*', 'auto', 'auto', 'auto', 'auto'];
+    } else {
+      comisionesTableBody = [
+        ['Accionista', 'Porcentaje', 'Ganancia Neta'],
+        ...shareholderShares.map((share) => ([
+          share.name,
+          `${Math.round(share.percentage * 100)}%`,
+          formatCurrency(share.amount),
+        ])),
+        [
+          'Total',
+          `${Math.round(shareholderShares.reduce((sum, share) => sum + share.percentage, 0) * 100)}%`,
+          formatCurrency(shareholderShares.reduce((sum, share) => sum + share.amount, 0)),
+        ],
+      ];
+      comisionesTableWidths = ['*', 'auto', 'auto'];
+    }
 
     const costosTableBody = [
       ['Date', 'Description', 'Amount'],
@@ -367,7 +382,7 @@ export class ReportsService {
           layout: 'customLayout01',
           table: {
             headerRows: 1,
-            widths: ['*', 'auto', 'auto', 'auto', 'auto'],
+            widths: comisionesTableWidths,
             body: comisionesTableBody
           }
         },

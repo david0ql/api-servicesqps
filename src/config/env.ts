@@ -17,6 +17,7 @@ interface EnvVars {
     ENABLE_NOTIFICATIONS: boolean
     ENABLE_SMS: boolean
     REPORTS_PUBLIC_BASE_URL: string
+    TENANT_ID: string
 }
 
 const envSchema = joi
@@ -35,6 +36,7 @@ const envSchema = joi
     ENABLE_NOTIFICATIONS: joi.boolean().default(false),
     ENABLE_SMS: joi.boolean().default(false),
     REPORTS_PUBLIC_BASE_URL: joi.string().default('http://localhost:3000'),
+    TENANT_ID: joi.string().default('main'),
   })
   .unknown(true)
   .required();
