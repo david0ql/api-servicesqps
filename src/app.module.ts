@@ -1,5 +1,6 @@
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { CommunitiesModule } from './api/communities/communities.module';
 import { CompaniesModule } from './api/companies/companies.module';
@@ -10,16 +11,20 @@ import { ExtrasModule } from './api/extras/extras.module';
 import { TypesModule } from './api/types/types.module';
 import { UsersModule } from './api/users/users.module';
 import { CostsModule } from './api/costs/costs.module';
+import { RecurringCostsModule } from './api/recurring-costs/recurring-costs.module';
+import { RecurringServicesModule } from './api/recurring-services/recurring-services.module';
 import { AuthModule } from './api/auth/auth.module';
 import { ReportsModule } from './api/reports/reports.module';
 import { PrinterModule } from './printer/printer.module';
 import { PermissionsModule } from './api/permissions/permissions.module';
 import { ReviewsModule } from './api/reviews/reviews.module';
+import { ServiceChatModule } from './api/service-chat/service-chat.module';
 
 import envVars from './config/env';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: "mysql",
       host: envVars.DB_HOST,
@@ -38,6 +43,8 @@ import envVars from './config/env';
     CompaniesModule,
     CommunitiesModule,
     CostsModule,
+    RecurringCostsModule,
+    RecurringServicesModule,
     ExtrasModule,
     StatusesModule,
     TypesModule,
@@ -46,6 +53,7 @@ import envVars from './config/env';
     PrinterModule,
     PermissionsModule,
     ReviewsModule,
+    ServiceChatModule,
   ],
   controllers: [],
   providers: [],

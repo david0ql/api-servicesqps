@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull, In } from 'typeorm';
+import { Repository, Not, IsNull, In, Brackets } from 'typeorm';
 import moment from 'moment';
 
 import { ServicesByManagerDto } from './dto/services-by-manager.dto';
@@ -38,6 +38,12 @@ export class ServicesService {
     private readonly pushNotificationsService: PushNotificationsService,
   ) { }
 
+  private addActiveRecurringFilter(queryBuilder: any) {
+    return queryBuilder
+      .leftJoin('recurring_services', 'recurring', 'recurring.id = services.recurring_service_id')
+      .andWhere('(services.recurringServiceId IS NULL OR recurring.is_active = 1)');
+  }
+
   async searchByWord(searchDto: SearchDto, pageOptionsDto: PageOptionsDto): Promise<PageDto<ServicesEntity>> {
     const searchedItemsByWord = this.servicesRepository.createQueryBuilder('services')
       .leftJoinAndSelect('services.community', 'community')
@@ -45,7 +51,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(searchedItemsByWord);
+    searchedItemsByWord
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -63,6 +71,51 @@ export class ServicesService {
     return new PageDto(items, pageMetaDto);
   }
 
+  async searchByWordByCommunities(
+    searchDto: SearchDto,
+    userId: string,
+    pageOptionsDto: PageOptionsDto,
+  ): Promise<PageDto<ServicesEntity>> {
+    const communities = await this.communitiesRepository.find({
+      where: [{ supervisorUserId: userId }, { managerUserId: userId }],
+      select: ['id'],
+    });
+
+    const communityIds = communities.map((community) => community.id);
+    if (!communityIds.length) {
+      const pageMetaDto = new PageMetaDto({ totalCount: 0, pageOptionsDto });
+      return new PageDto([], pageMetaDto);
+    }
+
+    const queryBuilder = this.servicesRepository.createQueryBuilder('services')
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .leftJoinAndSelect('services.user', 'user')
+      .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
+      .orderBy('services.createdAt', 'DESC')
+      .skip(pageOptionsDto.skip)
+      .take(pageOptionsDto.take)
+      .where('services.communityId IN (:...communityIds)', { communityIds })
+      .andWhere(new Brackets((qb) => {
+        qb.where('services.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.comment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.userComment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.unitySize LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      }));
+
+    const [items, totalCount] = await queryBuilder.getManyAndCount();
+
+    const pageMetaDto = new PageMetaDto({ totalCount, pageOptionsDto });
+
+    return new PageDto(items, pageMetaDto);
+  }
+
   async findAll(pageOptionsDto: PageOptionsDto): Promise<PageDto<ServicesDashboard>> {
     const queryBuilder = this.servicesRepository.createQueryBuilder('services')
 
@@ -72,7 +125,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -117,7 +172,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -139,7 +196,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -178,7 +237,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .where('services.userId = :userId', { userId })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
@@ -201,7 +262,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
@@ -251,7 +314,9 @@ export class ServicesService {
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
-      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra');
+    this.addActiveRecurringFilter(queryBuilder);
+    queryBuilder
       .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
       .andWhere('services.statusId = :statusID', { statusID })
       .orderBy('services.createdAt', 'DESC')
@@ -284,6 +349,10 @@ export class ServicesService {
 
   async create(createServiceDto: CreateServiceDto) {
     const { extraId, ...createServiceDtoCopy } = createServiceDto;
+
+    if (createServiceDto.userId) {
+      await this.assertAssignableUser(createServiceDto.userId);
+    }
     
     // Log detallado del DTO
     console.log('=== Create Service DTO Details ===');
@@ -405,7 +474,34 @@ export class ServicesService {
     };
   }
 
-  async update(id: string, updateServiceDto: UpdateServiceDto) {
+  async update(id: string, updateServiceDto: UpdateServiceDto, currentUser?: UsersEntity) {
+    const existingService = await this.servicesRepository.findOne({
+      where: { id },
+      select: ['id', 'userId', 'statusId'],
+    });
+
+    if (!existingService) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    if (currentUser?.roleId === '7') {
+      const isAssignedToCurrentUser = existingService.userId === currentUser.id;
+      const isStatusChange =
+        typeof updateServiceDto.statusId !== 'undefined' &&
+        updateServiceDto.statusId !== existingService.statusId;
+      const isReassignment =
+        typeof updateServiceDto.userId !== 'undefined' &&
+        updateServiceDto.userId !== existingService.userId;
+
+      if ((isStatusChange || isReassignment) && !isAssignedToCurrentUser) {
+        throw new ForbiddenException('QA users can only update services assigned to them.');
+      }
+    }
+
+    if (updateServiceDto.userId) {
+      await this.assertAssignableUser(updateServiceDto.userId);
+    }
+
     const service = await this.servicesRepository.preload({
       id,
       ...updateServiceDto,
@@ -451,11 +547,13 @@ export class ServicesService {
       throw new NotFoundException(`Service with ID ${id} not found after update`);
     }
   
+    const unitNumber = fullService.unitNumber?.trim() || 'Unknown Apartment';
+
     const statusMessages: Record<string, string> = {
       '2': `You have a new service for ${moment(fullService.date).format('MM/DD/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
-      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment(fullService.date).format('MM/DD/YYYY')}`,
+      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
       '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')}`,
-      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('DD/MM/YYYY')} in apartment number ${fullService.unitNumber}`,
+      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('DD/MM/YYYY')} in apartment number ${unitNumber}`,
     };
   
     const statusMessage = statusMessages[fullService.status?.id];
@@ -482,14 +580,18 @@ export class ServicesService {
   async remove(id: string) {
     const service = await this.servicesRepository.findOne({
       where: { id },
+      relations: ['community'],
     });
 
     if (!service) {
       throw new NotFoundException(`Service with ID ${id} not found`);
     }
 
+    const communityName = service.community?.communityName ?? 'Unknown Community';
+    const unitNumber = service.unitNumber?.trim() || 'Unknown Apartment';
+
     const notification = {
-      body: `The service with ID: ${service.id} has been removed`,
+      body: `The service has been deleted for apartment ${unitNumber} in ${communityName}`,
       title: 'Service Removed',
       data: {
         serviceId: service.id,
@@ -502,6 +604,31 @@ export class ServicesService {
     this.notifyInterestedParticipants(service, notification)
 
     return this.servicesRepository.remove(service);
+  }
+
+  async getActiveAssignees(months: number = 3) {
+    const sanitizedMonths = Number.isFinite(months) && months > 0 ? months : 3;
+    const since = moment().subtract(sanitizedMonths, 'months').format('YYYY-MM-DD');
+
+    const rows = await this.servicesRepository
+      .createQueryBuilder('services')
+      .leftJoin('services.user', 'user')
+      .select('DISTINCT user.id', 'id')
+      .where('services.userId IS NOT NULL')
+      .andWhere('services.date >= :since', { since })
+      .andWhere('user.roleId IN (:...roles)', { roles: ['4', '7'] })
+      .getRawMany();
+
+    const userIds = rows
+      .map((row) => row.id)
+      .filter((id) => id !== null && id !== undefined)
+      .map((id) => String(id));
+
+    return {
+      months: sanitizedMonths,
+      since,
+      userIds,
+    };
   }
 
   private async notifyInterestedParticipants(
@@ -600,5 +727,20 @@ export class ServicesService {
         users: usersWithPhone, // Enviamos todos los usuarios con teléfono para SMS
       },
     });
+  }
+
+  private async assertAssignableUser(userId: string) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'roleId'],
+    });
+
+    if (!user) {
+      throw new BadRequestException('Assigned user not found.');
+    }
+
+    if (user.roleId !== '4' && user.roleId !== '7') {
+      throw new BadRequestException('Assigned user must be a Cleaner or QA.');
+    }
   }
 }

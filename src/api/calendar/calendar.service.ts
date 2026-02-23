@@ -84,4 +84,50 @@ export class CalendarService {
 
     return servicesWithReviews;
   }
+
+  async findByYearAndMonth(year: number, month: number) {
+    // month is 1-based (1 = January, 12 = December)
+    const startDate = moment().year(year).month(month - 1).startOf('month').format('YYYY-MM-DD');
+    const endDate = moment().year(year).month(month - 1).endOf('month').format('YYYY-MM-DD');
+
+    const whereCondition = {
+      date: Between(startDate, endDate),
+    };
+
+    const services = await this.servicesRepository.find({
+      where: whereCondition,
+      relations: ['community', 'type', 'status', 'user'],
+    });
+
+    // Get reviews for all services
+    const servicesWithReviews = await Promise.all(
+      services.map(async (service) => {
+        const reviews = await this.reviewsByServiceRepository
+          .createQueryBuilder('reviewsByService')
+          .leftJoinAndSelect('reviewsByService.reviewItem', 'reviewItem')
+          .leftJoinAndSelect('reviewItem.reviewClass', 'reviewClass')
+          .where('reviewsByService.serviceId = :serviceId', { serviceId: service.id })
+          .getMany();
+
+        const reviewsData = reviews.map(review => ({
+          value: review.value,
+          reviewItemId: review.reviewItemId,
+          reviewItemName: review.reviewItem?.name || '',
+          reviewClassId: review.reviewItem?.reviewClassId || '',
+          reviewClassName: review.reviewItem?.reviewClass?.name || ''
+        }));
+
+        if (service.user) {
+          delete service.user.password;
+        }
+
+        return {
+          ...service,
+          reviews: reviewsData
+        };
+      })
+    );
+
+    return servicesWithReviews;
+  }
 }

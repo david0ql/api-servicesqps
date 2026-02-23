@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsEnum, IsInt, IsOptional, Max, Min } from "class-validator";
+import { Transform } from "class-transformer";
+import { IsBoolean, IsEnum, IsInt, IsOptional, Max, Min } from "class-validator";
 
 export enum Order {
     ASC = "ASC",
@@ -22,6 +23,15 @@ export class PageOptionsDto {
     @Min(1)
     @IsOptional()
     readonly page?: number = 1;
+
+    @ApiPropertyOptional({
+        description: 'Filtrar solo registros activos (ej: usuarios)',
+        example: true,
+    })
+    @IsBoolean()
+    @IsOptional()
+    @Transform(({ value }) => (value === undefined || value === '' ? undefined : value === 'true' || value === true))
+    readonly activeOnly?: boolean;
 
     @ApiPropertyOptional({
         minimum: 1,

@@ -45,6 +45,7 @@ export class UsersService {
         'users.email',
         'users.phoneNumber',
         'users.roleId',
+        'users.isActive',
         'users.createdAt',
         'role.id',
         'role.name',
@@ -64,6 +65,9 @@ export class UsersService {
   async findAll(pageOptionsDto: PageOptionsDto): Promise<PageDto<UsersEntity>> {
     const queryBuilder = this.usersRepository.createQueryBuilder('user');
     queryBuilder.innerJoinAndSelect('user.role', 'role');
+    if (pageOptionsDto.activeOnly) {
+      queryBuilder.andWhere('user.isActive = :isActive', { isActive: true });
+    }
     queryBuilder.orderBy('user.createdAt', pageOptionsDto.order);
     queryBuilder.skip(pageOptionsDto.skip);
     queryBuilder.take(pageOptionsDto.take);
@@ -73,6 +77,7 @@ export class UsersService {
       'user.email',
       'user.phoneNumber',
       'user.roleId',
+      'user.isActive',
       'user.createdAt',
       'role.id',
       'role.name',
@@ -100,6 +105,7 @@ export class UsersService {
         'user.email',
         'user.phoneNumber',
         'user.roleId',
+        'user.isActive',
         'user.createdAt',
         'role.id',
         'role.name',

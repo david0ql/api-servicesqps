@@ -7,6 +7,7 @@ import {
 } from "typeorm";
 import { ExtrasByServiceEntity } from "./extras_by_service.entity";
 import { ReviewsByServiceEntity } from "./reviews_by_service.entity";
+import { ServiceChatMessagesEntity } from "./service_chat_messages.entity";
 import { StatusesEntity } from "./statuses.entity";
 import { CommunitiesEntity } from "./communities.entity";
 import { UsersEntity } from "./users.entity";
@@ -17,6 +18,7 @@ import { ManyToOne, OneToMany } from "typeorm";
 @Index("status_id", ["statusId"], {})
 @Index("type_id", ["typeId"], {})
 @Index("user_id", ["userId"], {})
+@Index("recurring_service_id", ["recurringServiceId"], {})
 @Entity("services", { schema: "services_dbqa" })
 export class ServicesEntity {
   @PrimaryGeneratedColumn({ type: "bigint", name: "id", unsigned: true })
@@ -52,6 +54,9 @@ export class ServicesEntity {
   @Column("bigint", { name: "user_id", nullable: true, unsigned: true })
   userId: string | null;
 
+  @Column("bigint", { name: "recurring_service_id", nullable: true, unsigned: true })
+  recurringServiceId: string | null;
+
   @Column("timestamp", {
     name: "created_at",
     default: () => "CURRENT_TIMESTAMP",
@@ -72,6 +77,12 @@ export class ServicesEntity {
 
   @OneToMany('ReviewsByServiceEntity', 'service')
   reviewsByServices: any[];
+
+  @OneToMany(
+    () => ServiceChatMessagesEntity,
+    (serviceChatMessagesEntity) => serviceChatMessagesEntity.service
+  )
+  chatMessages: ServiceChatMessagesEntity[];
 
   @ManyToOne(() => StatusesEntity, (statusesEntity) => statusesEntity.services)
   @JoinColumn([{ name: "status_id", referencedColumnName: "id" }])

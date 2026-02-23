@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, ParseDatePipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseDatePipe, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -26,11 +26,29 @@ export class ServicesController {
     return this.servicesService.searchByWord(searchDto, pageOptionsDto);
   }
 
+  @Post('/search/by-communities')
+  @ApiPaginatedResponse(ServicesEntity)
+  @UseGuards(AuthGuard('jwt'))
+  searchByWordByCommunities(
+    @Query() pageOptionsDto: PageOptionsDto,
+    @Body() searchDto: SearchDto,
+    @Request() req: any,
+  ): Promise<PageDto<ServicesEntity>> {
+    return this.servicesService.searchByWordByCommunities(searchDto, req.user.user.id, pageOptionsDto);
+  }
+
   @Get('')
   @ApiPaginatedResponse(ServicesEntity)
   @UseGuards(AuthGuard('jwt'))
   findAll(@Query() pageOptionsDto: PageOptionsDto): Promise<PageDto<ServicesDashboard>> {
     return this.servicesService.findAll(pageOptionsDto);
+  }
+
+  @Get('/active-assignees')
+  @UseGuards(AuthGuard('jwt'))
+  getActiveAssignees(@Query('months') months?: string) {
+    const parsedMonths = months ? Number.parseInt(months, 10) : undefined;
+    return this.servicesService.getActiveAssignees(parsedMonths ?? 3);
   }
 
   @Get('/by-status/:statusID')
@@ -107,8 +125,8 @@ export class ServicesController {
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'))
-  update(@Param('id') id: string, @Body() updateServiceDto: UpdateServiceDto) {
-    return this.servicesService.update(id, updateServiceDto);
+  update(@Param('id') id: string, @Body() updateServiceDto: UpdateServiceDto, @Request() req: any) {
+    return this.servicesService.update(id, updateServiceDto, req.user.user);
   }
 
   @Delete(':id')
