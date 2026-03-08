@@ -1,8 +1,10 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseDatePipe, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import moment from 'moment';
 
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 
 import { ServicesDashboard, ServicesService } from './services.service';
 import { CreateServiceDto } from './dto/create-service.dto';
@@ -94,6 +96,34 @@ export class ServicesController {
     @Param('date', new ParseDatePipe()) date: string,
   ) {
     return this.servicesService.findByCleanerAndDate(userId, date);
+  }
+
+  @Get('/tracking/daily')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiQuery({ name: 'date', required: false, example: '2026-03-08' })
+  getDailyTracking(@Query('date') date?: string, @Request() req?: any) {
+    const targetDate = date ?? moment().format('YYYY-MM-DD');
+    return this.servicesService.getDailyTracking(targetDate, req.user.user);
+  }
+
+  @Post(':id/start')
+  @UseGuards(AuthGuard('jwt'))
+  trackServiceStart(
+    @Param('id') id: string,
+    @Body() trackServiceLocationDto: TrackServiceLocationDto,
+    @Request() req: any,
+  ) {
+    return this.servicesService.trackServiceStart(id, trackServiceLocationDto, req.user.user);
+  }
+
+  @Post(':id/finish')
+  @UseGuards(AuthGuard('jwt'))
+  trackServiceFinish(
+    @Param('id') id: string,
+    @Body() trackServiceLocationDto: TrackServiceLocationDto,
+    @Request() req: any,
+  ) {
+    return this.servicesService.trackServiceFinish(id, trackServiceLocationDto, req.user.user);
   }
 
   @Post('/by-communities')

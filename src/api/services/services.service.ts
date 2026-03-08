@@ -16,11 +16,24 @@ import { PageMetaDto } from '../../dto/page-meta.dto';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
 import { UsersEntity } from '../../entities/users.entity';
 import { CommunitiesEntity } from '../../entities/communities.entity';
+import { ServiceStatusId } from '../../constants/service-status.enum';
+import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
   totalParner: any;
   total: any;
+}
+
+export interface ServicesDailyTrackingResponse {
+  date: string;
+  summary: {
+    totalAssigned: number;
+    started: number;
+    notStarted: number;
+    finished: number;
+  };
+  services: ServicesEntity[];
 }
 
 @Injectable()
@@ -347,6 +360,170 @@ export class ServicesService {
     return queryBuilder.getMany();
   }
 
+  async trackServiceStart(id: string, payload: TrackServiceLocationDto, currentUser: UsersEntity) {
+    const service = await this.servicesRepository.findOne({
+      where: { id },
+      select: ['id', 'userId', 'statusId', 'date', 'startedAt', 'finishedAt'],
+    });
+
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    this.assertTrackingPermissions(service, currentUser);
+    this.assertServiceDateForStart(service.date);
+
+    if (service.startedAt) {
+      throw new BadRequestException('Service start has already been marked.');
+    }
+
+    if (service.statusId !== ServiceStatusId.Approved) {
+      throw new BadRequestException('Only approved services can be started.');
+    }
+
+    await this.servicesRepository.update(id, {
+      startedAt: new Date(),
+      startLatitude: payload.latitude.toString(),
+      startLongitude: payload.longitude.toString(),
+      startAccuracy: this.toDecimalString(payload.accuracy),
+      startAltitude: this.toDecimalString(payload.altitude),
+      startAltitudeAccuracy: this.toDecimalString(payload.altitudeAccuracy),
+      startHeading: this.toDecimalString(payload.heading),
+      startSpeed: this.toDecimalString(payload.speed),
+      startLocationMeta: this.toMetaString(payload.capturedAt, payload.meta),
+    });
+
+    return this.findOne(id);
+  }
+
+  async trackServiceFinish(id: string, payload: TrackServiceLocationDto, currentUser: UsersEntity) {
+    const service = await this.servicesRepository.findOne({
+      where: { id },
+      select: ['id', 'userId', 'statusId', 'date', 'startedAt', 'finishedAt'],
+    });
+
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    this.assertTrackingPermissions(service, currentUser);
+
+    if (!service.startedAt) {
+      throw new BadRequestException('Service must be started before marking finish.');
+    }
+
+    if (service.finishedAt) {
+      throw new BadRequestException('Service finish has already been marked.');
+    }
+
+    if (service.statusId !== ServiceStatusId.Approved && service.statusId !== ServiceStatusId.Completed) {
+      throw new BadRequestException('Only active approved services can be finished.');
+    }
+
+    const fullService = await this.servicesRepository.findOne({
+      where: { id },
+      relations: ['community', 'status', 'user', 'type'],
+    });
+
+    if (!fullService) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    fullService.finishedAt = new Date();
+    fullService.finishLatitude = payload.latitude.toString();
+    fullService.finishLongitude = payload.longitude.toString();
+    fullService.finishAccuracy = this.toDecimalString(payload.accuracy);
+    fullService.finishAltitude = this.toDecimalString(payload.altitude);
+    fullService.finishAltitudeAccuracy = this.toDecimalString(payload.altitudeAccuracy);
+    fullService.finishHeading = this.toDecimalString(payload.heading);
+    fullService.finishSpeed = this.toDecimalString(payload.speed);
+    fullService.finishLocationMeta = this.toMetaString(payload.capturedAt, payload.meta);
+    fullService.statusId = ServiceStatusId.Completed;
+
+    await this.servicesRepository.save(fullService);
+
+    const serviceAfterUpdate = await this.servicesRepository.findOne({
+      where: { id },
+      relations: ['community', 'status', 'user', 'type'],
+    });
+
+    if (!serviceAfterUpdate) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    const unitNumber = serviceAfterUpdate.unitNumber?.trim() || 'Unknown Apartment';
+    const notification = {
+      body: `Finished by ${serviceAfterUpdate.user?.name ?? 'Unknown'} in ${serviceAfterUpdate.community?.communityName ?? 'Unknown Community'} on ${moment(serviceAfterUpdate.date).format('DD/MM/YYYY')} in apartment number ${unitNumber}`,
+      title: 'Service Status Updated',
+      data: {
+        serviceId: serviceAfterUpdate.id,
+        serviceType: serviceAfterUpdate.type,
+        serviceDate: serviceAfterUpdate.date,
+        serviceStatus: serviceAfterUpdate.status,
+      },
+    };
+
+    await this.notifyInterestedParticipants(serviceAfterUpdate, notification);
+
+    return this.findOne(id);
+  }
+
+  async getDailyTracking(date: string, currentUser: UsersEntity): Promise<ServicesDailyTrackingResponse> {
+    const targetDate = moment(date, 'YYYY-MM-DD', true);
+    if (!targetDate.isValid()) {
+      throw new BadRequestException('date must be in YYYY-MM-DD format.');
+    }
+
+    const queryBuilder = this.servicesRepository.createQueryBuilder('services')
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .leftJoinAndSelect('services.user', 'user')
+      .where('services.date = :date', { date: targetDate.format('YYYY-MM-DD') })
+      .andWhere('services.userId IS NOT NULL')
+      .andWhere('services.statusId IN (:...statusIds)', {
+        statusIds: [ServiceStatusId.Approved, ServiceStatusId.Completed, ServiceStatusId.Finished],
+      })
+      .orderBy('services.schedule', 'ASC');
+
+    if (currentUser.roleId === '3' || currentUser.roleId === '6') {
+      const communities = await this.communitiesRepository.find({
+        where: [{ supervisorUserId: currentUser.id }, { managerUserId: currentUser.id }],
+        select: ['id'],
+      });
+
+      const communityIds = communities.map((community) => community.id);
+      if (!communityIds.length) {
+        return {
+          date: targetDate.format('YYYY-MM-DD'),
+          summary: { totalAssigned: 0, started: 0, notStarted: 0, finished: 0 },
+          services: [],
+        };
+      }
+
+      queryBuilder.andWhere('services.communityId IN (:...communityIds)', { communityIds });
+    }
+
+    if (currentUser.roleId === '4' || currentUser.roleId === '7') {
+      queryBuilder.andWhere('services.userId = :userId', { userId: currentUser.id });
+    }
+
+    const services = await queryBuilder.getMany();
+    const started = services.filter((service) => Boolean(service.startedAt)).length;
+    const finished = services.filter((service) => Boolean(service.finishedAt)).length;
+
+    return {
+      date: targetDate.format('YYYY-MM-DD'),
+      summary: {
+        totalAssigned: services.length,
+        started,
+        notStarted: services.length - started,
+        finished,
+      },
+      services,
+    };
+  }
+
   async create(createServiceDto: CreateServiceDto) {
     const { extraId, ...createServiceDtoCopy } = createServiceDto;
 
@@ -629,6 +806,53 @@ export class ServicesService {
       since,
       userIds,
     };
+  }
+
+  private assertTrackingPermissions(service: ServicesEntity, currentUser?: UsersEntity) {
+    if (!currentUser?.id) {
+      throw new ForbiddenException('User not found in request context.');
+    }
+
+    if (currentUser.roleId !== '4' && currentUser.roleId !== '7') {
+      throw new ForbiddenException('Only cleaners can register service checkpoints.');
+    }
+
+    if (service.userId !== currentUser.id) {
+      throw new ForbiddenException('You can only mark your own assigned services.');
+    }
+  }
+
+  private assertServiceDateForStart(serviceDate: string) {
+    const today = moment().format('YYYY-MM-DD');
+    if (today !== serviceDate) {
+      throw new BadRequestException('Service can only be started on its scheduled date.');
+    }
+  }
+
+  private toDecimalString(value?: number): string | null {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return null;
+    }
+
+    return value.toString();
+  }
+
+  private toMetaString(capturedAt?: string, meta?: Record<string, any>): string | null {
+    const payload: Record<string, any> = {};
+
+    if (capturedAt) {
+      payload.capturedAt = capturedAt;
+    }
+
+    if (meta && Object.keys(meta).length > 0) {
+      payload.meta = meta;
+    }
+
+    if (!Object.keys(payload).length) {
+      return null;
+    }
+
+    return JSON.stringify(payload);
   }
 
   private async notifyInterestedParticipants(
