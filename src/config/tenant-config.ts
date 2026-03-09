@@ -35,9 +35,9 @@ const VENTPRO_TENANT_CONFIG: TenantConfig = {
     logoPath: 'src/assets/brands/ventpro/logo.png',
     shareholderModel: 'fixed',
     fixedShareholders: [
-      { name: 'Accionista 1', percentage: 0.3333 },
-      { name: 'Accionista 2', percentage: 0.3333 },
-      { name: 'Accionista 3', percentage: 0.3334 },
+      { name: 'Diego Pinto', percentage: 0.3333 },
+      { name: 'Felix Estevez', percentage: 0.3333 },
+      { name: 'Felix Mendoza', percentage: 0.3334 },
     ],
     payoutReserveSplit: {
       paymentRatio: 0.6,
