@@ -38,7 +38,6 @@ export interface ServicesDailyTrackingResponse {
 
 @Injectable()
 export class ServicesService {
-
   constructor(
     @InjectRepository(ServicesEntity)
     private readonly servicesRepository: Repository<ServicesEntity>,
@@ -824,7 +823,9 @@ export class ServicesService {
 
   private assertServiceDateForStart(serviceDate: string) {
     const today = moment().format('YYYY-MM-DD');
-    if (today !== serviceDate) {
+    const scheduledDate = moment(serviceDate).format('YYYY-MM-DD');
+
+    if (today !== scheduledDate) {
       throw new BadRequestException('Service can only be started on its scheduled date.');
     }
   }
