@@ -419,27 +419,18 @@ export class ServicesService {
       throw new BadRequestException('Only active approved services can be finished.');
     }
 
-    const fullService = await this.servicesRepository.findOne({
-      where: { id },
-      relations: ['community', 'status', 'user', 'type'],
+    await this.servicesRepository.update(id, {
+      finishedAt: new Date(),
+      finishLatitude: payload.latitude.toString(),
+      finishLongitude: payload.longitude.toString(),
+      finishAccuracy: this.toDecimalString(payload.accuracy),
+      finishAltitude: this.toDecimalString(payload.altitude),
+      finishAltitudeAccuracy: this.toDecimalString(payload.altitudeAccuracy),
+      finishHeading: this.toDecimalString(payload.heading),
+      finishSpeed: this.toDecimalString(payload.speed),
+      finishLocationMeta: this.toMetaString(payload.capturedAt, payload.meta),
+      statusId: ServiceStatusId.Completed,
     });
-
-    if (!fullService) {
-      throw new NotFoundException(`Service with ID ${id} not found`);
-    }
-
-    fullService.finishedAt = new Date();
-    fullService.finishLatitude = payload.latitude.toString();
-    fullService.finishLongitude = payload.longitude.toString();
-    fullService.finishAccuracy = this.toDecimalString(payload.accuracy);
-    fullService.finishAltitude = this.toDecimalString(payload.altitude);
-    fullService.finishAltitudeAccuracy = this.toDecimalString(payload.altitudeAccuracy);
-    fullService.finishHeading = this.toDecimalString(payload.heading);
-    fullService.finishSpeed = this.toDecimalString(payload.speed);
-    fullService.finishLocationMeta = this.toMetaString(payload.capturedAt, payload.meta);
-    fullService.statusId = ServiceStatusId.Completed;
-
-    await this.servicesRepository.save(fullService);
 
     const serviceAfterUpdate = await this.servicesRepository.findOne({
       where: { id },
