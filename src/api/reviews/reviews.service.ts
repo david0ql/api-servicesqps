@@ -1,13 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import moment from 'moment';
 
 import { ReviewItemsEntity } from '../../entities/review_items.entity';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 import { ServicesEntity } from '../../entities/services.entity';
 import { UsersEntity } from '../../entities/users.entity';
-import { ReviewItemsGroupedByClassDto, ReviewItemDto } from './dto/review-items-with-class.dto';
+import { ReviewItemsGroupedByClassDto } from './dto/review-items-with-class.dto';
 import { CreateServiceReviewDto } from './dto/create-service-review.dto';
+import { TrackServiceLocationDto } from '../services/dto/track-service-location.dto';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
 
 @Injectable()
@@ -56,7 +58,39 @@ export class ReviewsService {
     return Object.values(groupedItems);
   }
 
-  async createServiceReview(createServiceReviewDto: CreateServiceReviewDto) {
+  async trackQAStart(serviceId: string, payload: TrackServiceLocationDto, currentUser: UsersEntity) {
+    const service = await this.servicesRepository.findOne({
+      where: { id: serviceId },
+      select: ['id', 'userId', 'statusId', 'qaStartedAt'],
+    });
+
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${serviceId} not found`);
+    }
+
+    if (currentUser.roleId !== '7') {
+      throw new BadRequestException('Only QA users can track QA start location.');
+    }
+
+    await this.servicesRepository.update(serviceId, {
+      qaUserId: currentUser.id,
+      qaStartedAt: new Date(),
+      qaStartLatitude: payload.latitude.toString(),
+      qaStartLongitude: payload.longitude.toString(),
+      qaStartAccuracy: payload.accuracy != null ? payload.accuracy.toString() : null,
+      qaStartAltitude: payload.altitude != null ? payload.altitude.toString() : null,
+      qaStartAltitudeAccuracy: payload.altitudeAccuracy != null ? payload.altitudeAccuracy.toString() : null,
+      qaStartHeading: payload.heading != null ? payload.heading.toString() : null,
+      qaStartSpeed: payload.speed != null ? payload.speed.toString() : null,
+      qaStartLocationMeta: payload.capturedAt || payload.meta
+        ? JSON.stringify({ capturedAt: payload.capturedAt, ...payload.meta })
+        : null,
+    });
+
+    return { success: true };
+  }
+
+  async createServiceReview(createServiceReviewDto: CreateServiceReviewDto, currentUser?: UsersEntity) {
     const service = await this.servicesRepository.findOne({
       where: { id: createServiceReviewDto.serviceId },
       relations: ['community', 'user', 'status']
@@ -68,9 +102,8 @@ export class ReviewsService {
 
     // Process each review item (insert or update)
     const savedReviews = [];
-    
+
     for (const item of createServiceReviewDto.reviewItems) {
-      // Check if review already exists
       const existingReview = await this.reviewsByServiceRepository.findOne({
         where: {
           serviceId: createServiceReviewDto.serviceId,
@@ -79,39 +112,78 @@ export class ReviewsService {
       });
 
       if (existingReview) {
-        // Update existing review
         existingReview.value = item.value ? 1 : 0;
-        const updatedReview = await this.reviewsByServiceRepository.save(existingReview);
-        savedReviews.push(updatedReview);
+        savedReviews.push(await this.reviewsByServiceRepository.save(existingReview));
       } else {
-        // Create new review
         const newReview = this.reviewsByServiceRepository.create({
           serviceId: createServiceReviewDto.serviceId,
           reviewItemId: item.reviewItemId,
           value: item.value ? 1 : 0
         });
-        const createdReview = await this.reviewsByServiceRepository.save(newReview);
-        savedReviews.push(createdReview);
+        savedReviews.push(await this.reviewsByServiceRepository.save(newReview));
       }
     }
 
     const hasFailedItems = savedReviews.some(review => review.value !== 0);
 
-    if (hasFailedItems) {
-      await this.servicesRepository.update(createServiceReviewDto.serviceId, {
-        statusId: '3',
-        comment: createServiceReviewDto.message || 'Service needs refresh due to failed review items'
-      });
+    // Build service update with QA finish location if provided
+    const serviceUpdate: Partial<ServicesEntity> = {
+      statusId: hasFailedItems ? '3' : '6',
+      comment: createServiceReviewDto.message || (hasFailedItems ? 'Service needs refresh due to failed review items' : 'Service approved'),
+    };
 
+    if (createServiceReviewDto.latitude != null && createServiceReviewDto.longitude != null) {
+      serviceUpdate.qaFinishedAt = new Date();
+      serviceUpdate.qaFinishLatitude = createServiceReviewDto.latitude.toString();
+      serviceUpdate.qaFinishLongitude = createServiceReviewDto.longitude.toString();
+      serviceUpdate.qaFinishAccuracy = createServiceReviewDto.accuracy != null ? createServiceReviewDto.accuracy.toString() : null;
+      serviceUpdate.qaFinishAltitude = createServiceReviewDto.altitude != null ? createServiceReviewDto.altitude.toString() : null;
+      serviceUpdate.qaFinishAltitudeAccuracy = createServiceReviewDto.altitudeAccuracy != null ? createServiceReviewDto.altitudeAccuracy.toString() : null;
+      serviceUpdate.qaFinishHeading = createServiceReviewDto.heading != null ? createServiceReviewDto.heading.toString() : null;
+      serviceUpdate.qaFinishSpeed = createServiceReviewDto.speed != null ? createServiceReviewDto.speed.toString() : null;
+      serviceUpdate.qaFinishLocationMeta = createServiceReviewDto.capturedAt || createServiceReviewDto.meta
+        ? JSON.stringify({ capturedAt: createServiceReviewDto.capturedAt, ...createServiceReviewDto.meta })
+        : null;
+      if (currentUser) serviceUpdate.qaUserId = currentUser.id;
+    }
+
+    await this.servicesRepository.update(createServiceReviewDto.serviceId, serviceUpdate);
+
+    if (hasFailedItems) {
       await this.notifyServiceRefresh(service);
-    } else {
-      await this.servicesRepository.update(createServiceReviewDto.serviceId, {
-        statusId: '6',
-        comment: createServiceReviewDto.message || 'Service approved'
-      });
     }
 
     return savedReviews;
+  }
+
+  async getQADailyTracking(date: string) {
+    const targetDate = moment(date, 'YYYY-MM-DD', true);
+    if (!targetDate.isValid()) {
+      throw new BadRequestException('Invalid date format. Use YYYY-MM-DD.');
+    }
+
+    const services = await this.servicesRepository
+      .createQueryBuilder('services')
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.user', 'user')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .where('services.qaStartedAt IS NOT NULL')
+      .andWhere('DATE(services.qaStartedAt) = :date', { date: targetDate.format('YYYY-MM-DD') })
+      .orderBy('services.qaStartedAt', 'ASC')
+      .getMany();
+
+    const finished = services.filter(s => s.qaFinishedAt !== null).length;
+
+    return {
+      date: targetDate.format('YYYY-MM-DD'),
+      summary: {
+        totalReviewed: services.length,
+        finished,
+        notFinished: services.length - finished,
+      },
+      services,
+    };
   }
 
   private async notifyServiceRefresh(service: ServicesEntity) {
