@@ -72,6 +72,10 @@ export class ReviewsService {
       throw new BadRequestException('Only QA users can track QA start location.');
     }
 
+    if (service.qaStartedAt) {
+      return { success: true, skipped: true };
+    }
+
     await this.servicesRepository.update(serviceId, {
       qaUserId: currentUser.id,
       qaStartedAt: new Date(),
