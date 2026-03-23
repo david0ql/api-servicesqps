@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import moment from 'moment';
+import moment from 'moment-timezone';
 
 import { ReviewItemsEntity } from '../../entities/review_items.entity';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
