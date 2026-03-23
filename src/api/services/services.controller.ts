@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseDatePipe, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import moment from 'moment-timezone';
@@ -93,7 +93,7 @@ export class ServicesController {
   @UseGuards(AuthGuard('jwt'))
   findByCleanerAndDate(
     @Param('userId') userId: string,
-    @Param('date', new ParseDatePipe()) date: string,
+    @Param('date') date: string,
   ) {
     return this.servicesService.findByCleanerAndDate(userId, date);
   }
