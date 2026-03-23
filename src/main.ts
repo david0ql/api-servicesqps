@@ -3,10 +3,13 @@ import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { join } from 'path';
 import * as express from 'express';
+import moment from 'moment-timezone';
 
 import { AppModule } from './app.module';
 
 import envVars from './config/env';
+
+moment.tz.setDefault('America/New_York');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

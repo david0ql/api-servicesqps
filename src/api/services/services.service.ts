@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In, Brackets } from 'typeorm';
-import moment from 'moment';
+import moment from 'moment-timezone';
 
 import { ServicesByManagerDto } from './dto/services-by-manager.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
@@ -443,7 +443,7 @@ export class ServicesService {
 
     const unitNumber = serviceAfterUpdate.unitNumber?.trim() || 'Unknown Apartment';
     const notification = {
-      body: `Finished by ${serviceAfterUpdate.user?.name ?? 'Unknown'} in ${serviceAfterUpdate.community?.communityName ?? 'Unknown Community'} on ${moment(serviceAfterUpdate.date).format('DD/MM/YYYY')} in apartment number ${unitNumber}`,
+      body: `Finished by ${serviceAfterUpdate.user?.name ?? 'Unknown'} in ${serviceAfterUpdate.community?.communityName ?? 'Unknown Community'} on ${moment.utc(serviceAfterUpdate.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
       title: 'Service Status Updated',
       data: {
         serviceId: serviceAfterUpdate.id,
@@ -618,7 +618,7 @@ export class ServicesService {
     console.log('Users with phone:', usersWithPhone);
 
     const notification = {
-      body: `New service created for ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')} in apartment number ${fullService.unitNumber}`,
+      body: `New service created for ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${fullService.unitNumber}`,
       title: 'New Service Created',
       data: {
         serviceId: service.id,
@@ -717,10 +717,10 @@ export class ServicesService {
     const unitNumber = fullService.unitNumber?.trim() || 'Unknown Apartment';
 
     const statusMessages: Record<string, string> = {
-      '2': `You have a new service for ${moment(fullService.date).format('MM/DD/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
-      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
-      '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')}`,
-      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('DD/MM/YYYY')} in apartment number ${unitNumber}`,
+      '2': `You have a new service for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
+      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
+      '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')}`,
+      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
     };
   
     const statusMessage = statusMessages[fullService.status?.id];

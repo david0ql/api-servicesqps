@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseDatePipe, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import moment from 'moment';
+import moment from 'moment-timezone';
 
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { TrackServiceLocationDto } from './dto/track-service-location.dto';

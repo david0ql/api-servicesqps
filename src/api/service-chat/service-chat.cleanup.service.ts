@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import moment from 'moment';
+import moment from 'moment-timezone';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 
