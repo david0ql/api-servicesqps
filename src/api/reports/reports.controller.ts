@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseDatePipe, Res, Query, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Param, Res, Query, NotFoundException } from '@nestjs/common';
 import archiver from 'archiver';
 
 import { Response } from 'express';
@@ -11,9 +11,9 @@ export class ReportsController {
 
   @Get('/reporte-general')
   async reporteGeneral(
-    @Res() response: Response, 
-    @Query('startDate', new ParseDatePipe()) startDate: string,
-    @Query('endDate', new ParseDatePipe()) endDate: string
+    @Res() response: Response,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string
   ) {
     const pdfDoc = await this.reportsService.reporteGeneral(startDate, endDate);
     response.setHeader('Content-Type', 'application/pdf');
@@ -23,9 +23,9 @@ export class ReportsController {
 
   @Get('/reporte-cleaner')
   async reporteCleaner(
-    @Res() response: Response, 
-    @Query('startDate', new ParseDatePipe()) startDate: string,
-    @Query('endDate', new ParseDatePipe()) endDate: string
+    @Res() response: Response,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string
   ) {
     const pdfDoc = await this.reportsService.reporteCleaner(startDate, endDate);
     response.setHeader('Content-Type', 'application/pdf');
@@ -36,8 +36,8 @@ export class ReportsController {
   @Get('/reporte-cleaner-zip')
   async reporteCleanerZip(
     @Res() response: Response,
-    @Query('startDate', new ParseDatePipe()) startDate: string,
-    @Query('endDate', new ParseDatePipe()) endDate: string
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string
   ) {
     const { zipName, files } = await this.reportsService.reporteCleanerZip(startDate, endDate);
     response.setHeader('Content-Type', 'application/zip');
@@ -64,9 +64,9 @@ export class ReportsController {
 
   @Get('/costos-semana')
   async costosSemana(
-    @Res() response: Response, 
-    @Query('startDate', new ParseDatePipe()) startDate: string,
-    @Query('endDate', new ParseDatePipe()) endDate: string
+    @Res() response: Response,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string
   ) {
     const pdfDoc = await this.reportsService.costosSemana(startDate, endDate);
     response.setHeader('Content-Type', 'application/pdf');
