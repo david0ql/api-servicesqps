@@ -160,11 +160,10 @@ export class ReviewsService {
     return savedReviews;
   }
 
-  async getQADailyTracking(date: string) {
-    const targetDate = moment(date, 'YYYY-MM-DD', true);
-    if (!targetDate.isValid()) {
-      throw new BadRequestException('Invalid date format. Use YYYY-MM-DD.');
-    }
+  async getQADailyTracking() {
+    const today = moment.tz('America/New_York');
+    const startOfDay = today.clone().startOf('day').toDate();
+    const endOfDay = today.clone().endOf('day').toDate();
 
     const services = await this.servicesRepository
       .createQueryBuilder('services')
@@ -173,14 +172,15 @@ export class ReviewsService {
       .leftJoinAndSelect('services.type', 'type')
       .leftJoinAndSelect('services.status', 'status')
       .where('services.qaStartedAt IS NOT NULL')
-      .andWhere('DATE(services.qaStartedAt) = :date', { date: targetDate.format('YYYY-MM-DD') })
+      .andWhere('services.qaStartedAt >= :startOfDay', { startOfDay })
+      .andWhere('services.qaStartedAt <= :endOfDay', { endOfDay })
       .orderBy('services.qaStartedAt', 'ASC')
       .getMany();
 
     const finished = services.filter(s => s.qaFinishedAt !== null).length;
 
     return {
-      date: targetDate.format('YYYY-MM-DD'),
+      date: today.format('YYYY-MM-DD'),
       summary: {
         totalReviewed: services.length,
         finished,

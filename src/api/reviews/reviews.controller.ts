@@ -37,7 +37,7 @@ export class ReviewsController {
 
   @Get('/qa-tracking/daily')
   @UseGuards(AuthGuard('jwt'))
-  async getQADailyTracking(@Query('date') date: string) {
-    return this.reviewsService.getQADailyTracking(date);
+  async getQADailyTracking() {
+    return this.reviewsService.getQADailyTracking();
   }
 } 
