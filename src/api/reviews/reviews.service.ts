@@ -72,8 +72,13 @@ export class ReviewsService {
       throw new BadRequestException('Only QA users can track QA start location.');
     }
 
+    // Skip only if QA already started today (same calendar day in Eastern time)
     if (service.qaStartedAt) {
-      return { success: true, skipped: true };
+      const startedDay = moment.tz(service.qaStartedAt, 'America/New_York').format('YYYY-MM-DD');
+      const today = moment.tz('America/New_York').format('YYYY-MM-DD');
+      if (startedDay === today) {
+        return { success: true, skipped: true };
+      }
     }
 
     await this.servicesRepository.update(serviceId, {
