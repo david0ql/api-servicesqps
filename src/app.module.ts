@@ -35,6 +35,10 @@ import envVars from './config/env';
       entities: [__dirname + '/entities/*.entity{.ts,.js}'],
       synchronize: true,
       autoLoadEntities: true,
+      timezone: 'Z',
+      extra: {
+        dateStrings: ['DATE'],
+      },
     }),
 
     AuthModule,
