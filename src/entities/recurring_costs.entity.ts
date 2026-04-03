@@ -17,7 +17,7 @@ export class RecurringCostsEntity {
   @Column("date", { name: "end_date", nullable: true })
   endDate: string | null;
 
-  @Column("tinyint", { name: "is_active", width: 1, default: () => "1" })
+  @Column("tinyint", { name: "is_active", width: 1, default: () => "1", transformer: { to: (v) => v, from: (v) => Boolean(v) } })
   isActive: boolean;
 
   @Column("timestamp", {
