@@ -57,6 +57,117 @@ export class ServicesEntity {
   @Column("bigint", { name: "recurring_service_id", nullable: true, unsigned: true })
   recurringServiceId: string | null;
 
+  @Column("timestamp", { name: "started_at", nullable: true })
+  startedAt: Date | null;
+
+  @Column("decimal", { name: "start_latitude", precision: 10, scale: 7, nullable: true })
+  startLatitude: string | null;
+
+  @Column("decimal", { name: "start_longitude", precision: 10, scale: 7, nullable: true })
+  startLongitude: string | null;
+
+  @Column("decimal", { name: "start_accuracy", precision: 10, scale: 2, nullable: true })
+  startAccuracy: string | null;
+
+  @Column("decimal", { name: "start_altitude", precision: 10, scale: 2, nullable: true })
+  startAltitude: string | null;
+
+  @Column("decimal", { name: "start_altitude_accuracy", precision: 10, scale: 2, nullable: true })
+  startAltitudeAccuracy: string | null;
+
+  @Column("decimal", { name: "start_heading", precision: 10, scale: 2, nullable: true })
+  startHeading: string | null;
+
+  @Column("decimal", { name: "start_speed", precision: 10, scale: 2, nullable: true })
+  startSpeed: string | null;
+
+  @Column("text", { name: "start_location_meta", nullable: true })
+  startLocationMeta: string | null;
+
+  @Column("timestamp", { name: "finished_at", nullable: true })
+  finishedAt: Date | null;
+
+  @Column("decimal", { name: "finish_latitude", precision: 10, scale: 7, nullable: true })
+  finishLatitude: string | null;
+
+  @Column("decimal", { name: "finish_longitude", precision: 10, scale: 7, nullable: true })
+  finishLongitude: string | null;
+
+  @Column("decimal", { name: "finish_accuracy", precision: 10, scale: 2, nullable: true })
+  finishAccuracy: string | null;
+
+  @Column("decimal", { name: "finish_altitude", precision: 10, scale: 2, nullable: true })
+  finishAltitude: string | null;
+
+  @Column("decimal", { name: "finish_altitude_accuracy", precision: 10, scale: 2, nullable: true })
+  finishAltitudeAccuracy: string | null;
+
+  @Column("decimal", { name: "finish_heading", precision: 10, scale: 2, nullable: true })
+  finishHeading: string | null;
+
+  @Column("decimal", { name: "finish_speed", precision: 10, scale: 2, nullable: true })
+  finishSpeed: string | null;
+
+  @Column("text", { name: "finish_location_meta", nullable: true })
+  finishLocationMeta: string | null;
+
+  @Column("bigint", { name: "qa_user_id", unsigned: true, nullable: true })
+  qaUserId: string | null;
+
+  @Column("timestamp", { name: "qa_started_at", nullable: true })
+  qaStartedAt: Date | null;
+
+  @Column("decimal", { name: "qa_start_latitude", precision: 10, scale: 7, nullable: true })
+  qaStartLatitude: string | null;
+
+  @Column("decimal", { name: "qa_start_longitude", precision: 10, scale: 7, nullable: true })
+  qaStartLongitude: string | null;
+
+  @Column("decimal", { name: "qa_start_accuracy", precision: 10, scale: 2, nullable: true })
+  qaStartAccuracy: string | null;
+
+  @Column("decimal", { name: "qa_start_altitude", precision: 10, scale: 2, nullable: true })
+  qaStartAltitude: string | null;
+
+  @Column("decimal", { name: "qa_start_altitude_accuracy", precision: 10, scale: 2, nullable: true })
+  qaStartAltitudeAccuracy: string | null;
+
+  @Column("decimal", { name: "qa_start_heading", precision: 10, scale: 2, nullable: true })
+  qaStartHeading: string | null;
+
+  @Column("decimal", { name: "qa_start_speed", precision: 10, scale: 2, nullable: true })
+  qaStartSpeed: string | null;
+
+  @Column("text", { name: "qa_start_location_meta", nullable: true })
+  qaStartLocationMeta: string | null;
+
+  @Column("timestamp", { name: "qa_finished_at", nullable: true })
+  qaFinishedAt: Date | null;
+
+  @Column("decimal", { name: "qa_finish_latitude", precision: 10, scale: 7, nullable: true })
+  qaFinishLatitude: string | null;
+
+  @Column("decimal", { name: "qa_finish_longitude", precision: 10, scale: 7, nullable: true })
+  qaFinishLongitude: string | null;
+
+  @Column("decimal", { name: "qa_finish_accuracy", precision: 10, scale: 2, nullable: true })
+  qaFinishAccuracy: string | null;
+
+  @Column("decimal", { name: "qa_finish_altitude", precision: 10, scale: 2, nullable: true })
+  qaFinishAltitude: string | null;
+
+  @Column("decimal", { name: "qa_finish_altitude_accuracy", precision: 10, scale: 2, nullable: true })
+  qaFinishAltitudeAccuracy: string | null;
+
+  @Column("decimal", { name: "qa_finish_heading", precision: 10, scale: 2, nullable: true })
+  qaFinishHeading: string | null;
+
+  @Column("decimal", { name: "qa_finish_speed", precision: 10, scale: 2, nullable: true })
+  qaFinishSpeed: string | null;
+
+  @Column("text", { name: "qa_finish_location_meta", nullable: true })
+  qaFinishLocationMeta: string | null;
+
   @Column("timestamp", {
     name: "created_at",
     default: () => "CURRENT_TIMESTAMP",

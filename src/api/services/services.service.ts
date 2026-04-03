@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In, Brackets } from 'typeorm';
-import moment from 'moment';
+import moment from 'moment-timezone';
 
 import { ServicesByManagerDto } from './dto/services-by-manager.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
@@ -16,6 +16,8 @@ import { PageMetaDto } from '../../dto/page-meta.dto';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
 import { UsersEntity } from '../../entities/users.entity';
 import { CommunitiesEntity } from '../../entities/communities.entity';
+import { ServiceStatusId } from '../../constants/service-status.enum';
+import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -23,9 +25,19 @@ export interface ServicesDashboard extends ServicesEntity {
   total: any;
 }
 
+export interface ServicesDailyTrackingResponse {
+  date: string;
+  summary: {
+    totalAssigned: number;
+    started: number;
+    notStarted: number;
+    finished: number;
+  };
+  services: ServicesEntity[];
+}
+
 @Injectable()
 export class ServicesService {
-
   constructor(
     @InjectRepository(ServicesEntity)
     private readonly servicesRepository: Repository<ServicesEntity>,
@@ -347,6 +359,161 @@ export class ServicesService {
     return queryBuilder.getMany();
   }
 
+  async trackServiceStart(id: string, payload: TrackServiceLocationDto, currentUser: UsersEntity) {
+    const service = await this.servicesRepository.findOne({
+      where: { id },
+      select: ['id', 'userId', 'statusId', 'date', 'startedAt', 'finishedAt'],
+    });
+
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    this.assertTrackingPermissions(service, currentUser);
+    this.assertServiceDateForStart(service.date);
+
+    if (service.startedAt) {
+      throw new BadRequestException('Service start has already been marked.');
+    }
+
+    if (service.statusId !== ServiceStatusId.Approved) {
+      throw new BadRequestException('Only approved services can be started.');
+    }
+
+    await this.servicesRepository.update(id, {
+      startedAt: new Date(),
+      startLatitude: payload.latitude.toString(),
+      startLongitude: payload.longitude.toString(),
+      startAccuracy: this.toDecimalString(payload.accuracy),
+      startAltitude: this.toDecimalString(payload.altitude),
+      startAltitudeAccuracy: this.toDecimalString(payload.altitudeAccuracy),
+      startHeading: this.toDecimalString(payload.heading),
+      startSpeed: this.toDecimalString(payload.speed),
+      startLocationMeta: this.toMetaString(payload.capturedAt, payload.meta),
+    });
+
+    return this.findOne(id);
+  }
+
+  async trackServiceFinish(id: string, payload: TrackServiceLocationDto, currentUser: UsersEntity) {
+    const service = await this.servicesRepository.findOne({
+      where: { id },
+      select: ['id', 'userId', 'statusId', 'date', 'startedAt', 'finishedAt'],
+    });
+
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    this.assertTrackingPermissions(service, currentUser);
+
+    if (!service.startedAt) {
+      throw new BadRequestException('Service must be started before marking finish.');
+    }
+
+    if (service.finishedAt) {
+      throw new BadRequestException('Service finish has already been marked.');
+    }
+
+    if (service.statusId !== ServiceStatusId.Approved && service.statusId !== ServiceStatusId.Completed) {
+      throw new BadRequestException('Only active approved services can be finished.');
+    }
+
+    await this.servicesRepository.update(id, {
+      finishedAt: new Date(),
+      finishLatitude: payload.latitude.toString(),
+      finishLongitude: payload.longitude.toString(),
+      finishAccuracy: this.toDecimalString(payload.accuracy),
+      finishAltitude: this.toDecimalString(payload.altitude),
+      finishAltitudeAccuracy: this.toDecimalString(payload.altitudeAccuracy),
+      finishHeading: this.toDecimalString(payload.heading),
+      finishSpeed: this.toDecimalString(payload.speed),
+      finishLocationMeta: this.toMetaString(payload.capturedAt, payload.meta),
+      statusId: ServiceStatusId.Completed,
+    });
+
+    const serviceAfterUpdate = await this.servicesRepository.findOne({
+      where: { id },
+      relations: ['community', 'status', 'user', 'type'],
+    });
+
+    if (!serviceAfterUpdate) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    const unitNumber = serviceAfterUpdate.unitNumber?.trim() || 'Unknown Apartment';
+    const notification = {
+      body: `Finished by ${serviceAfterUpdate.user?.name ?? 'Unknown'} in ${serviceAfterUpdate.community?.communityName ?? 'Unknown Community'} on ${moment.utc(serviceAfterUpdate.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
+      title: 'Service Status Updated',
+      data: {
+        serviceId: serviceAfterUpdate.id,
+        serviceType: serviceAfterUpdate.type,
+        serviceDate: serviceAfterUpdate.date,
+        serviceStatus: serviceAfterUpdate.status,
+      },
+    };
+
+    await this.notifyInterestedParticipants(serviceAfterUpdate, notification);
+
+    return this.findOne(id);
+  }
+
+  async getDailyTracking(date: string, currentUser: UsersEntity): Promise<ServicesDailyTrackingResponse> {
+    const targetDate = moment(date, 'YYYY-MM-DD', true);
+    if (!targetDate.isValid()) {
+      throw new BadRequestException('date must be in YYYY-MM-DD format.');
+    }
+
+    const queryBuilder = this.servicesRepository.createQueryBuilder('services')
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .leftJoinAndSelect('services.user', 'user')
+      .where('services.date = :date', { date: targetDate.format('YYYY-MM-DD') })
+      .andWhere('services.userId IS NOT NULL')
+      .andWhere('services.statusId IN (:...statusIds)', {
+        statusIds: [ServiceStatusId.Approved, ServiceStatusId.Completed, ServiceStatusId.Finished],
+      })
+      .orderBy('services.schedule', 'ASC');
+
+    if (currentUser.roleId === '3' || currentUser.roleId === '6') {
+      const communities = await this.communitiesRepository.find({
+        where: [{ supervisorUserId: currentUser.id }, { managerUserId: currentUser.id }],
+        select: ['id'],
+      });
+
+      const communityIds = communities.map((community) => community.id);
+      if (!communityIds.length) {
+        return {
+          date: targetDate.format('YYYY-MM-DD'),
+          summary: { totalAssigned: 0, started: 0, notStarted: 0, finished: 0 },
+          services: [],
+        };
+      }
+
+      queryBuilder.andWhere('services.communityId IN (:...communityIds)', { communityIds });
+    }
+
+    if (currentUser.roleId === '4' || currentUser.roleId === '7') {
+      queryBuilder.andWhere('services.userId = :userId', { userId: currentUser.id });
+    }
+
+    const services = await queryBuilder.getMany();
+    const started = services.filter((service) => Boolean(service.startedAt)).length;
+    const finished = services.filter((service) => Boolean(service.finishedAt)).length;
+
+    return {
+      date: targetDate.format('YYYY-MM-DD'),
+      summary: {
+        totalAssigned: services.length,
+        started,
+        notStarted: services.length - started,
+        finished,
+      },
+      services,
+    };
+  }
+
   async create(createServiceDto: CreateServiceDto) {
     const { extraId, ...createServiceDtoCopy } = createServiceDto;
 
@@ -451,7 +618,7 @@ export class ServicesService {
     console.log('Users with phone:', usersWithPhone);
 
     const notification = {
-      body: `New service created for ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')} in apartment number ${fullService.unitNumber}`,
+      body: `New service created for ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${fullService.unitNumber}`,
       title: 'New Service Created',
       data: {
         serviceId: service.id,
@@ -550,10 +717,10 @@ export class ServicesService {
     const unitNumber = fullService.unitNumber?.trim() || 'Unknown Apartment';
 
     const statusMessages: Record<string, string> = {
-      '2': `You have a new service for ${moment(fullService.date).format('MM/DD/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
-      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
-      '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('MM/DD/YYYY')}`,
-      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment(fullService.date).format('DD/MM/YYYY')} in apartment number ${unitNumber}`,
+      '2': `You have a new service for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
+      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
+      '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')}`,
+      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
     };
   
     const statusMessage = statusMessages[fullService.status?.id];
@@ -629,6 +796,55 @@ export class ServicesService {
       since,
       userIds,
     };
+  }
+
+  private assertTrackingPermissions(service: ServicesEntity, currentUser?: UsersEntity) {
+    if (!currentUser?.id) {
+      throw new ForbiddenException('User not found in request context.');
+    }
+
+    if (currentUser.roleId !== '4' && currentUser.roleId !== '7') {
+      throw new ForbiddenException('Only cleaners can register service checkpoints.');
+    }
+
+    if (service.userId !== currentUser.id) {
+      throw new ForbiddenException('You can only mark your own assigned services.');
+    }
+  }
+
+  private assertServiceDateForStart(serviceDate: string) {
+    const today = moment().format('YYYY-MM-DD');
+    const scheduledDate = moment(serviceDate).format('YYYY-MM-DD');
+
+    if (today !== scheduledDate) {
+      throw new BadRequestException('Service can only be started on its scheduled date.');
+    }
+  }
+
+  private toDecimalString(value?: number): string | null {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return null;
+    }
+
+    return value.toString();
+  }
+
+  private toMetaString(capturedAt?: string, meta?: Record<string, any>): string | null {
+    const payload: Record<string, any> = {};
+
+    if (capturedAt) {
+      payload.capturedAt = capturedAt;
+    }
+
+    if (meta && Object.keys(meta).length > 0) {
+      payload.meta = meta;
+    }
+
+    if (!Object.keys(payload).length) {
+      return null;
+    }
+
+    return JSON.stringify(payload);
   }
 
   private async notifyInterestedParticipants(

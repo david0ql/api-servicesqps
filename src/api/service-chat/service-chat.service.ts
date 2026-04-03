@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import moment from 'moment';
+import moment from 'moment-timezone';
 
 import { isChatOpenStatus } from '../../constants/service-status.enum';
 import { ServiceChatMessagesEntity } from '../../entities/service_chat_messages.entity';

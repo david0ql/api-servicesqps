@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, ValidateNested, IsBoolean } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsArray, ValidateNested, IsBoolean, IsNumber, IsOptional, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ReviewItemValueDto {
@@ -26,4 +26,15 @@ export class CreateServiceReviewDto {
   @ValidateNested({ each: true })
   @Type(() => ReviewItemValueDto)
   reviewItems: ReviewItemValueDto[];
+
+  // QA finish location
+  @ApiPropertyOptional() @IsOptional() @IsNumber() latitude?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() longitude?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() accuracy?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() altitude?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() altitudeAccuracy?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() heading?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() speed?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() capturedAt?: string;
+  @ApiPropertyOptional() @IsOptional() @IsObject() meta?: Record<string, any>;
 } 

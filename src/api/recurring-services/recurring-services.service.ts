@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
-import moment from 'moment';
+import moment from 'moment-timezone';
 
 import { PageOptionsDto } from 'src/dto/page-options.dto';
 import { PageMetaDto } from 'src/dto/page-meta.dto';

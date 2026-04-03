@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 
-import moment from 'moment';
+import moment from 'moment-timezone';
 import type { Content, StyleDictionary, TDocumentDefinitions, BufferOptions, CustomTableLayout } from 'pdfmake/interfaces';
 import { CostsEntity } from '../../entities/costs.entity';
 import { RecurringCostsEntity } from '../../entities/recurring_costs.entity';
@@ -191,7 +191,7 @@ export class ReportsService {
 
     costs.push(
       ...recurringCosts.map(cost => ({
-        date: moment(endOfWeek).format('YYYY-MM-DD'),
+        date: moment.utc(endOfWeek).format('YYYY-MM-DD'),
         description: cost.description,
         amount: cost.amount,
       })),
@@ -247,7 +247,7 @@ export class ReportsService {
           : 'N/A';
         
         tableBody.push([
-          { text: moment(service.date).format('MM/DD/YYYY'), color: textColor, fillColor: null },
+          { text: moment.utc(service.date).format('MM/DD/YYYY'), color: textColor, fillColor: null },
           { text: service.community?.communityName ?? 'N/A', color: textColor, fillColor: null },
           { text: service.unitNumber ?? 'N/A', color: textColor, fillColor: null },
           { text: typeDisplay, color: textColor, fillColor: null },
@@ -331,7 +331,7 @@ export class ReportsService {
     const costosTableBody = [
       ['Date', 'Description', 'Amount'],
       ...costs.map(cost => [
-        moment(cost.date).format('MM/DD/YYYY'),
+        moment.utc(cost.date).format('MM/DD/YYYY'),
         cost.description,
         `$${Number(cost.amount).toFixed(2)}`,
       ]),
@@ -348,7 +348,7 @@ export class ReportsService {
         columns: [
           logo,
           {
-            text: `Service Report - Week ${moment(startOfWeek).format('MM/DD/YYYY')} to ${moment(endOfWeek).format('MM/DD/YYYY')}`,
+            text: `Service Report - Week ${moment.utc(startOfWeek).format('MM/DD/YYYY')} to ${moment.utc(endOfWeek).format('MM/DD/YYYY')}`,
             style: 'header',
           },
           {
@@ -480,7 +480,7 @@ export class ReportsService {
       const tableBody = [
         ['Date', 'Community', 'Unit number', 'Type', 'Commission', 'Extras', 'Total'],
         ...servicesDashboard.map(service => [
-          moment(service.date).format('MM/DD/YYYY'),
+          moment.utc(service.date).format('MM/DD/YYYY'),
           service.community?.communityName ?? 'N/A',
           service.unitNumber ?? 'N/A',
           'Total:',
@@ -531,7 +531,7 @@ export class ReportsService {
         columns: [
           logo,
           {
-            text: `Cleaner Report - Week ${moment(startOfWeek).format('MM/DD/YYYY')} to ${moment(endOfWeek).format('MM/DD/YYYY')}`,
+            text: `Cleaner Report - Week ${moment.utc(startOfWeek).format('MM/DD/YYYY')} to ${moment.utc(endOfWeek).format('MM/DD/YYYY')}`,
             style: 'header',
           },
           {
@@ -631,8 +631,8 @@ export class ReportsService {
       select: ['id', 'name', 'phoneNumber', 'roleId'],
     });
 
-    const startLabel = moment(startOfWeek).format('MM/DD/YYYY');
-    const endLabel = moment(endOfWeek).format('MM/DD/YYYY');
+    const startLabel = moment.utc(startOfWeek).format('MM/DD/YYYY');
+    const endLabel = moment.utc(endOfWeek).format('MM/DD/YYYY');
 
     await Promise.all(
       cleaners.map(async (cleaner) => {
@@ -669,7 +669,7 @@ export class ReportsService {
 
     costs.push(
       ...recurringCosts.map(cost => ({
-        date: moment(endOfWeek).format('YYYY-MM-DD'),
+        date: moment.utc(endOfWeek).format('YYYY-MM-DD'),
         description: cost.description,
         amount: cost.amount,
       })),
@@ -683,7 +683,7 @@ export class ReportsService {
         columns: [
           logo,
           {
-            text: `Costs week ${moment(startOfWeek).format('MM/DD/YYYY')} to ${moment(endOfWeek).format('MM/DD/YYYY')}`,
+            text: `Costs week ${moment.utc(startOfWeek).format('MM/DD/YYYY')} to ${moment.utc(endOfWeek).format('MM/DD/YYYY')}`,
             style: 'header',
           },
           {
@@ -704,7 +704,7 @@ export class ReportsService {
             body: [
               ['Date', 'Description', 'Amount'],
               ...costs.map(cost => [
-                moment(cost.date).format('MM/DD/YYYY'),
+                moment.utc(cost.date).format('MM/DD/YYYY'),
                 cost.description,
                 `$${Number(cost.amount).toFixed(2)}`,
               ]),
@@ -810,7 +810,7 @@ export class ReportsService {
         const total = typePrice + extrasTotal;
         
         return [
-          { text: moment(service.date).format('MM/DD/YYYY'), color: textColor },
+          { text: moment.utc(service.date).format('MM/DD/YYYY'), color: textColor },
           { text: service.unitNumber ?? 'N/A', color: textColor },
           { text: service.type?.description ?? 'N/A', color: textColor },
           { text: formatCurrency(typePrice), color: textColor },
@@ -868,7 +868,7 @@ export class ReportsService {
         
         typeTableBody.push([
           { text: '', color: textColor, fillColor: null },
-          { text: moment(service.date).format('MM/DD/YYYY'), color: textColor, fillColor: null },
+          { text: moment.utc(service.date).format('MM/DD/YYYY'), color: textColor, fillColor: null },
           { text: service.unitNumber ?? 'N/A', color: textColor, fillColor: null },
           { text: formatCurrency(typePrice), color: textColor, fillColor: null },
           { text: formatCurrency(extrasTotal), color: textColor, fillColor: null },
@@ -1011,7 +1011,7 @@ export class ReportsService {
     const tableBody = [
       ['Date', 'Community', 'Unit number', 'Type', 'Commission', 'Extras', 'Total'],
       ...servicesDashboard.map(service => [
-        moment(service.date).format('MM/DD/YYYY'),
+        moment.utc(service.date).format('MM/DD/YYYY'),
         service.community?.communityName ?? 'N/A',
         service.unitNumber ?? 'N/A',
         'Total:',
@@ -1043,7 +1043,7 @@ export class ReportsService {
         columns: [
           logo,
           {
-            text: `Cleaner Report - Week ${moment(startOfWeek).format('MM/DD/YYYY')} to ${moment(endOfWeek).format('MM/DD/YYYY')}`,
+            text: `Cleaner Report - Week ${moment.utc(startOfWeek).format('MM/DD/YYYY')} to ${moment.utc(endOfWeek).format('MM/DD/YYYY')}`,
             style: 'header',
           },
           {
