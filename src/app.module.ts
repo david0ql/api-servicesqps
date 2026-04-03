@@ -36,6 +36,9 @@ import envVars from './config/env';
       synchronize: true,
       autoLoadEntities: true,
       timezone: 'Z',
+      extra: {
+        dateStrings: ['DATE'],
+      },
     }),
 
     AuthModule,
