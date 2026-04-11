@@ -945,6 +945,60 @@ export class ServicesService {
     });
   }
 
+  async getKdsWeek(weekOf: string) {
+    const startDate = moment(weekOf, 'YYYY-MM-DD', true);
+    if (!startDate.isValid()) {
+      throw new BadRequestException('weekOf must be in YYYY-MM-DD format (Monday of the week).');
+    }
+    const endDate = startDate.clone().add(6, 'days');
+
+    const services = await this.servicesRepository
+      .createQueryBuilder('services')
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .leftJoinAndSelect('services.user', 'user')
+      .where('services.date BETWEEN :start AND :end', {
+        start: startDate.format('YYYY-MM-DD'),
+        end: endDate.format('YYYY-MM-DD'),
+      })
+      .andWhere('services.statusId IN (:...statusIds)', {
+        statusIds: [ServiceStatusId.Approved, ServiceStatusId.Completed, ServiceStatusId.Finished],
+      })
+      .orderBy('services.kdsDay', 'ASC', 'NULLS LAST')
+      .addOrderBy('services.kdsOrder', 'ASC', 'NULLS LAST')
+      .addOrderBy('services.date', 'ASC')
+      .addOrderBy('services.schedule', 'ASC')
+      .getMany();
+
+    const assigned = services.filter(s => s.kdsDay !== null);
+    const unassigned = services.filter(s => s.kdsDay === null);
+
+    return { weekOf: startDate.format('YYYY-MM-DD'), assigned, unassigned };
+  }
+
+  async updateKdsAssignment(
+    id: string,
+    body: { kdsDay: string | null; kdsOrder: number | null; kdsWeekOf: string | null },
+  ) {
+    const service = await this.servicesRepository.findOne({ where: { id } });
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    const validDays = ['monday', 'wednesday', 'friday', null];
+    if (!validDays.includes(body.kdsDay as any)) {
+      throw new BadRequestException('kdsDay must be monday, wednesday, friday, or null.');
+    }
+
+    service.kdsDay = (body.kdsDay as any) ?? null;
+    service.kdsOrder = body.kdsOrder ?? null;
+    service.kdsWeekOf = body.kdsWeekOf ?? null;
+
+    await this.servicesRepository.save(service);
+    return { id, kdsDay: service.kdsDay, kdsOrder: service.kdsOrder, kdsWeekOf: service.kdsWeekOf };
+  }
+
   private async assertAssignableUser(userId: string) {
     const user = await this.usersRepository.findOne({
       where: { id: userId },

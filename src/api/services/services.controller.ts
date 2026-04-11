@@ -74,6 +74,22 @@ export class ServicesController {
     return this.servicesService.findAllByUserIDStatusID(userID, statusID, pageOptionsDto);
   }
 
+  @Get('/kds/week')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiQuery({ name: 'weekOf', required: true, example: '2026-04-07' })
+  getKdsWeek(@Query('weekOf') weekOf: string) {
+    return this.servicesService.getKdsWeek(weekOf);
+  }
+
+  @Patch(':id/kds')
+  @UseGuards(AuthGuard('jwt'))
+  updateKdsAssignment(
+    @Param('id') id: string,
+    @Body() body: { kdsDay: string | null; kdsOrder: number | null; kdsWeekOf: string | null },
+  ) {
+    return this.servicesService.updateKdsAssignment(id, body);
+  }
+
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   findOne(@Param('id') id: string) {
