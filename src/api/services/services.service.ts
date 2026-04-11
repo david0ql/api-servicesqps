@@ -920,6 +920,10 @@ export class ServicesService {
         self.findIndex(u => u.phoneNumber === user.phoneNumber) === index
       );
 
+    const smsUsers = service.status?.id === '6'
+      ? usersWithPhone.filter((user) => user.roleId === '1' || user.roleId === '4')
+      : usersWithPhone;
+
     console.log('Filtered users by role and status:', filteredUsers.map(u => ({ 
       id: u.id, 
       name: u.name, 
@@ -929,6 +933,7 @@ export class ServicesService {
     })));
     console.log('Users with token:', usersWithToken.map(u => ({ id: u.id, name: u.name, roleId: u.roleId, token: u.token })));
     console.log('Users with phone:', usersWithPhone.map(u => ({ id: u.id, name: u.name, roleId: u.roleId, phone: u.phoneNumber })));
+    console.log('SMS users:', smsUsers.map(u => ({ id: u.id, name: u.name, roleId: u.roleId, phone: u.phoneNumber })));
 
     const uniqueTokens = usersWithToken.map(u => u.token);
 
@@ -939,7 +944,7 @@ export class ServicesService {
       sound: 'default',
       tokensNotification: {
         tokens: uniqueTokens,
-        users: usersWithPhone, // Enviamos todos los usuarios con teléfono para SMS
+        users: smsUsers,
       },
     });
   }
