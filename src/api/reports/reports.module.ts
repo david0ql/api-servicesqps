@@ -4,6 +4,7 @@ import { ReportsController } from './reports.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CostsEntity } from '../../entities/costs.entity';
 import { RecurringCostsEntity } from '../../entities/recurring_costs.entity';
+import { RecurringServicesEntity } from '../../entities/recurring_services.entity';
 import { ExtrasByServiceEntity } from '../../entities/extras_by_service.entity';
 import { ServicesEntity } from '../../entities/services.entity';
 import { PrinterModule } from '../../printer/printer.module';
@@ -21,6 +22,7 @@ import { TextBeeModule } from '../../textbee/textbee.module';
     TypeOrmModule.forFeature([
       CostsEntity,
       RecurringCostsEntity,
+      RecurringServicesEntity,
       ServicesEntity,
       ExtrasByServiceEntity,
       CommunitiesEntity,

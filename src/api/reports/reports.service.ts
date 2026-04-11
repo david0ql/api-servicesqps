@@ -7,6 +7,7 @@ import moment from 'moment-timezone';
 import type { Content, StyleDictionary, TDocumentDefinitions, BufferOptions, CustomTableLayout } from 'pdfmake/interfaces';
 import { CostsEntity } from '../../entities/costs.entity';
 import { RecurringCostsEntity } from '../../entities/recurring_costs.entity';
+import { RecurringServicesEntity } from '../../entities/recurring_services.entity';
 import { Between, In, Repository } from 'typeorm';
 import { ServicesEntity } from '../../entities/services.entity';
 import { ExtrasByServiceEntity } from '../../entities/extras_by_service.entity';
@@ -107,8 +108,39 @@ export class ReportsService {
     private readonly usersRepository: Repository<UsersEntity>,
     @InjectRepository(CleanerReportLinksEntity)
     private readonly cleanerReportLinksRepository: Repository<CleanerReportLinksEntity>,
+    @InjectRepository(RecurringServicesEntity)
+    private readonly recurringServicesRepository: Repository<RecurringServicesEntity>,
     private readonly textBeeService: TextBeeService,
   ) { }
+
+  /** Returns services filtered: excludes those whose day-of-week is in the
+   *  recurring service's qaHiddenDays. Only applies to cleaner reports. */
+  private async filterQaHiddenServices(services: ServicesEntity[]): Promise<ServicesEntity[]> {
+    const recurringIds = [...new Set(
+      services.map(s => s.recurringServiceId).filter(Boolean) as string[]
+    )];
+
+    if (!recurringIds.length) return services;
+
+    const recurrings = await this.recurringServicesRepository.findByIds(recurringIds, {
+      select: ['id', 'qaHiddenDays'],
+    });
+
+    const hiddenDaysMap = new Map<string, string[]>();
+    recurrings.forEach(r => {
+      if (r.qaHiddenDays?.length) hiddenDaysMap.set(r.id, r.qaHiddenDays);
+    });
+
+    if (!hiddenDaysMap.size) return services;
+
+    return services.filter(service => {
+      if (!service.recurringServiceId) return true;
+      const hiddenDays = hiddenDaysMap.get(service.recurringServiceId);
+      if (!hiddenDays?.length) return true;
+      const serviceDay = moment.utc(service.date).format('ddd').toLowerCase();
+      return !hiddenDays.includes(serviceDay);
+    });
+  }
 
   async reporteGeneral(startDate: string, endDate: string) {
     const startOfWeek = moment(startDate).format('YYYY-MM-DD');
@@ -429,7 +461,8 @@ export class ReportsService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
       .where('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek });
 
-    const services = await queryBuilder.getMany();
+    const rawServices = await queryBuilder.getMany();
+    const services = await this.filterQaHiddenServices(rawServices);
 
     // Agrupar por cleaner
     const cleanersMap = new Map<string, ServicesEntity[]>();
@@ -573,7 +606,8 @@ export class ReportsService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
       .where('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek });
 
-    const services = await queryBuilder.getMany();
+    const rawServices = await queryBuilder.getMany();
+    const services = await this.filterQaHiddenServices(rawServices);
 
     const cleanersMap = new Map<string, ServicesEntity[]>();
     services.forEach(service => {

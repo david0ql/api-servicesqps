@@ -53,6 +53,12 @@ export class CreateRecurringServiceDto {
   @IsString({ each: true })
   extraIds?: string[] | null;
 
+  @ApiProperty({ description: 'Days hidden from cleaner/QA reports', example: ['sat', 'sun'], required: false })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  qaHiddenDays?: string[] | null;
+
   @ApiProperty({ description: 'Active flag', example: true, required: false })
   @IsOptional()
   @IsBoolean()

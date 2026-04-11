@@ -50,6 +50,9 @@ export class RecurringServicesEntity {
   @Column("simple-array", { name: "days_of_week" })
   daysOfWeek: string[];
 
+  @Column("simple-array", { name: "qa_hidden_days", nullable: true })
+  qaHiddenDays: string[] | null;
+
   @Column("simple-array", { name: "extra_ids", nullable: true })
   extraIds: string[] | null;
 
