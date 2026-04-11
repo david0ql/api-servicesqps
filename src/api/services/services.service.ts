@@ -965,8 +965,10 @@ export class ServicesService {
       .andWhere('services.statusId IN (:...statusIds)', {
         statusIds: [ServiceStatusId.Approved, ServiceStatusId.Completed, ServiceStatusId.Finished],
       })
-      .orderBy('services.kdsDay', 'ASC', 'NULLS LAST')
-      .addOrderBy('services.kdsOrder', 'ASC', 'NULLS LAST')
+      .orderBy('services.kdsDay IS NULL', 'ASC')
+      .addOrderBy('services.kdsDay', 'ASC')
+      .addOrderBy('services.kdsOrder IS NULL', 'ASC')
+      .addOrderBy('services.kdsOrder', 'ASC')
       .addOrderBy('services.date', 'ASC')
       .addOrderBy('services.schedule', 'ASC')
       .getMany();
