@@ -721,13 +721,12 @@ export class ServicesService {
       '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
       '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')}`,
       '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
+      '6': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
     };
   
-    const statusMessage = statusMessages[fullService.status?.id];
-  
-    if (!statusMessage) {
-      throw new NotFoundException(`Status message not found for status ID ${fullService.status?.id}`);
-    }
+    const statusMessage = statusMessages[fullService.status?.id]
+      ?? `Service status updated to ${fullService.status?.statusName ?? 'unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`;
+
     const notification = {
       body: statusMessage,
       title: 'Service Status Updated',
