@@ -122,7 +122,8 @@ export class ReportsService {
 
     if (!recurringIds.length) return services;
 
-    const recurrings = await this.recurringServicesRepository.findByIds(recurringIds, {
+    const recurrings = await this.recurringServicesRepository.find({
+      where: { id: In(recurringIds) },
       select: ['id', 'qaHiddenDays'],
     });
 
