@@ -968,10 +968,16 @@ export class ServicesService {
       .leftJoinAndSelect('services.type', 'type')
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
-      .where('services.date BETWEEN :start AND :end', {
-        start: startDate.format('YYYY-MM-DD'),
-        end: endDate.format('YYYY-MM-DD'),
-      })
+      .where(
+        new Brackets((qb) => {
+          qb.where('services.kdsWeekOf = :weekOf', {
+            weekOf: startDate.format('YYYY-MM-DD'),
+          }).orWhere('services.kdsWeekOf IS NULL AND services.date BETWEEN :start AND :end', {
+            start: startDate.format('YYYY-MM-DD'),
+            end: endDate.format('YYYY-MM-DD'),
+          });
+        }),
+      )
       .andWhere('services.statusId IN (:...statusIds)', {
         statusIds: [ServiceStatusId.Approved, ServiceStatusId.Completed],
       })
@@ -987,7 +993,44 @@ export class ServicesService {
     const assigned = services.filter(s => s.kdsDay !== null);
     const unassigned = services.filter(s => s.kdsDay === null);
 
-    return { weekOf: startDate.format('YYYY-MM-DD'), assigned, unassigned };
+    let limbo: ServicesEntity[] = [];
+    if (!isQaUser) {
+      limbo = await this.servicesRepository
+        .createQueryBuilder('services')
+        .leftJoinAndSelect('services.community', 'community')
+        .leftJoinAndSelect('services.type', 'type')
+        .leftJoinAndSelect('services.status', 'status')
+        .leftJoinAndSelect('services.user', 'user')
+        .where('services.statusId IN (:...statusIds)', {
+          statusIds: [ServiceStatusId.Approved, ServiceStatusId.Completed],
+        })
+        .andWhere('services.qaFinishedAt IS NULL')
+        .andWhere(
+          new Brackets((qb) => {
+            qb.where('services.kdsWeekOf IS NOT NULL AND services.kdsWeekOf < :start', {
+              start: startDate.format('YYYY-MM-DD'),
+            }).orWhere('services.kdsWeekOf IS NULL AND services.date < :start', {
+              start: startDate.format('YYYY-MM-DD'),
+            });
+          }),
+        )
+        .orderBy('COALESCE(services.kdsWeekOf, services.date)', 'ASC')
+        .addOrderBy('services.kdsDay IS NULL', 'ASC')
+        .addOrderBy('services.kdsDay', 'ASC')
+        .addOrderBy('services.kdsOrder IS NULL', 'ASC')
+        .addOrderBy('services.kdsOrder', 'ASC')
+        .addOrderBy('services.date', 'ASC')
+        .addOrderBy('services.schedule', 'ASC')
+        .getMany();
+    }
+
+    return {
+      weekOf: startDate.format('YYYY-MM-DD'),
+      assigned,
+      unassigned,
+      limbo,
+      limboCount: limbo.length,
+    };
   }
 
   async updateKdsAssignment(
@@ -1024,10 +1067,6 @@ export class ServicesService {
         throw new BadRequestException('kdsWeekOf must be in YYYY-MM-DD format when kdsDay is set.');
       }
       const normalizedWeekOf = parsedWeek.startOf('isoWeek').format('YYYY-MM-DD');
-      const serviceWeekOf = moment(service.date, 'YYYY-MM-DD', true).startOf('isoWeek').format('YYYY-MM-DD');
-      if (normalizedWeekOf !== serviceWeekOf) {
-        throw new BadRequestException('kdsWeekOf must match the week of the service date.');
-      }
 
       service.kdsDay = body.kdsDay as any;
       service.kdsOrder = body.kdsOrder;
