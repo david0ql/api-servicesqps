@@ -77,8 +77,8 @@ export class ServicesController {
   @Get('/kds/week')
   @UseGuards(AuthGuard('jwt'))
   @ApiQuery({ name: 'weekOf', required: true, example: '2026-04-07' })
-  getKdsWeek(@Query('weekOf') weekOf: string) {
-    return this.servicesService.getKdsWeek(weekOf);
+  getKdsWeek(@Query('weekOf') weekOf: string, @Request() req: any) {
+    return this.servicesService.getKdsWeek(weekOf, req.user.user);
   }
 
   @Patch(':id/kds')
@@ -86,8 +86,9 @@ export class ServicesController {
   updateKdsAssignment(
     @Param('id') id: string,
     @Body() body: { kdsDay: string | null; kdsOrder: number | null; kdsWeekOf: string | null },
+    @Request() req: any,
   ) {
-    return this.servicesService.updateKdsAssignment(id, body);
+    return this.servicesService.updateKdsAssignment(id, body, req.user.user);
   }
 
   @Get(':id')

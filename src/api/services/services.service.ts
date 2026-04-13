@@ -949,11 +949,17 @@ export class ServicesService {
     });
   }
 
-  async getKdsWeek(weekOf: string) {
-    const startDate = moment(weekOf, 'YYYY-MM-DD', true);
-    if (!startDate.isValid()) {
+  async getKdsWeek(weekOf: string, currentUser?: UsersEntity) {
+    const requestedWeekStart = moment(weekOf, 'YYYY-MM-DD', true);
+    const isQaUser = currentUser?.roleId === '7';
+
+    if (!isQaUser && !requestedWeekStart.isValid()) {
       throw new BadRequestException('weekOf must be in YYYY-MM-DD format (Monday of the week).');
     }
+
+    const startDate = isQaUser
+      ? moment().startOf('isoWeek')
+      : requestedWeekStart.startOf('isoWeek');
     const endDate = startDate.clone().add(6, 'days');
 
     const services = await this.servicesRepository
@@ -986,7 +992,13 @@ export class ServicesService {
   async updateKdsAssignment(
     id: string,
     body: { kdsDay: string | null; kdsOrder: number | null; kdsWeekOf: string | null },
+    currentUser?: UsersEntity,
   ) {
+    const isAdmin = currentUser?.roleId === '1';
+    if (!isAdmin) {
+      throw new ForbiddenException('Only admins can update KDS assignments.');
+    }
+
     const service = await this.servicesRepository.findOne({ where: { id } });
     if (!service) {
       throw new NotFoundException(`Service with ID ${id} not found`);
@@ -997,9 +1009,29 @@ export class ServicesService {
       throw new BadRequestException('kdsDay must be monday, wednesday, friday, or null.');
     }
 
-    service.kdsDay = (body.kdsDay as any) ?? null;
-    service.kdsOrder = body.kdsOrder ?? null;
-    service.kdsWeekOf = body.kdsWeekOf ?? null;
+    if (body.kdsDay === null) {
+      service.kdsDay = null;
+      service.kdsOrder = null;
+      service.kdsWeekOf = null;
+    } else {
+      if (!Number.isInteger(body.kdsOrder) || (body.kdsOrder as number) < 1) {
+        throw new BadRequestException('kdsOrder must be an integer greater than 0 when kdsDay is set.');
+      }
+
+      const parsedWeek = moment(body.kdsWeekOf, 'YYYY-MM-DD', true);
+      if (!parsedWeek.isValid()) {
+        throw new BadRequestException('kdsWeekOf must be in YYYY-MM-DD format when kdsDay is set.');
+      }
+      const normalizedWeekOf = parsedWeek.startOf('isoWeek').format('YYYY-MM-DD');
+      const serviceWeekOf = moment(service.date, 'YYYY-MM-DD', true).startOf('isoWeek').format('YYYY-MM-DD');
+      if (normalizedWeekOf !== serviceWeekOf) {
+        throw new BadRequestException('kdsWeekOf must match the week of the service date.');
+      }
+
+      service.kdsDay = body.kdsDay as any;
+      service.kdsOrder = body.kdsOrder;
+      service.kdsWeekOf = normalizedWeekOf;
+    }
 
     await this.servicesRepository.save(service);
     return { id, kdsDay: service.kdsDay, kdsOrder: service.kdsOrder, kdsWeekOf: service.kdsWeekOf };
