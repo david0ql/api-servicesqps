@@ -973,8 +973,9 @@ export class ServicesService {
         end: endDate.format('YYYY-MM-DD'),
       })
       .andWhere('services.statusId IN (:...statusIds)', {
-        statusIds: [ServiceStatusId.Approved, ServiceStatusId.Completed, ServiceStatusId.Finished],
+        statusIds: [ServiceStatusId.Approved, ServiceStatusId.Completed],
       })
+      .andWhere('services.qaFinishedAt IS NULL')
       .orderBy('services.kdsDay IS NULL', 'ASC')
       .addOrderBy('services.kdsDay', 'ASC')
       .addOrderBy('services.kdsOrder IS NULL', 'ASC')
