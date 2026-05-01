@@ -115,6 +115,18 @@ export class ServicesController {
     return this.servicesService.findByCleanerAndDate(userId, date);
   }
 
+  @Get('/community/:communityId/range')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiQuery({ name: 'startDate', required: true, example: '2026-05-01' })
+  @ApiQuery({ name: 'endDate', required: true, example: '2026-05-31' })
+  findByCommunityDateRange(
+    @Param('communityId') communityId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.servicesService.findByCommunityDateRange(communityId, startDate, endDate);
+  }
+
   @Get('/tracking/daily')
   @UseGuards(AuthGuard('jwt'))
   @ApiQuery({ name: 'date', required: false, example: '2026-03-08' })
@@ -180,5 +192,17 @@ export class ServicesController {
   @UseGuards(AuthGuard('jwt'))
   remove(@Param('id') id: string) {
     return this.servicesService.remove(id);
+  }
+
+  @Delete('/community/:communityId/range')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiQuery({ name: 'startDate', required: true, example: '2026-05-01' })
+  @ApiQuery({ name: 'endDate', required: true, example: '2026-05-31' })
+  removeByCommunityDateRange(
+    @Param('communityId') communityId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.servicesService.removeByCommunityDateRange(communityId, startDate, endDate);
   }
 }
