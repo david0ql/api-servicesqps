@@ -18,6 +18,7 @@ import { UsersEntity } from '../../entities/users.entity';
 import { CommunitiesEntity } from '../../entities/communities.entity';
 import { ServiceStatusId } from '../../constants/service-status.enum';
 import { TrackServiceLocationDto } from './dto/track-service-location.dto';
+import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -357,6 +358,16 @@ export class ServicesService {
       .andWhere('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek })
 
     return queryBuilder.getMany();
+  }
+
+  async findByCommunityDateRange(communityId: string, startDate: string, endDate: string): Promise<ServicesEntity[]> {
+    this.assertDateRange(startDate, endDate);
+
+    return this.createCommunityDateRangeQuery(communityId, startDate, endDate)
+      .orderBy('services.date', 'ASC')
+      .addOrderBy('services.schedule', 'ASC')
+      .addOrderBy('services.unitNumber', 'ASC')
+      .getMany();
   }
 
   async trackServiceStart(id: string, payload: TrackServiceLocationDto, currentUser: UsersEntity) {
@@ -769,7 +780,32 @@ export class ServicesService {
 
     this.notifyInterestedParticipants(service, notification)
 
-    return this.servicesRepository.remove(service);
+    await this.servicesRepository.manager.transaction(async (manager) => {
+      await manager.delete(ReviewsByServiceEntity, { serviceId: id });
+      await manager.delete(ServicesEntity, { id });
+    });
+
+    return service;
+  }
+
+  async removeByCommunityDateRange(communityId: string, startDate: string, endDate: string) {
+    this.assertDateRange(startDate, endDate);
+
+    const serviceIds = await this.createCommunityDateRangeQuery(communityId, startDate, endDate)
+      .select('services.id', 'id')
+      .getRawMany<{ id: string }>()
+      .then((rows) => rows.map((row) => row.id));
+
+    if (!serviceIds.length) {
+      return { deletedCount: 0 };
+    }
+
+    await this.servicesRepository.manager.transaction(async (manager) => {
+      await manager.delete(ReviewsByServiceEntity, { serviceId: In(serviceIds) });
+      await manager.delete(ServicesEntity, { id: In(serviceIds) });
+    });
+
+    return { deletedCount: serviceIds.length };
   }
 
   async getActiveAssignees(months: number = 3) {
@@ -808,6 +844,32 @@ export class ServicesService {
 
     if (service.userId !== currentUser.id) {
       throw new ForbiddenException('You can only mark your own assigned services.');
+    }
+  }
+
+  private createCommunityDateRangeQuery(communityId: string, startDate: string, endDate: string) {
+    return this.servicesRepository
+      .createQueryBuilder('services')
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .leftJoinAndSelect('services.user', 'user')
+      .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .where('services.communityId = :communityId', { communityId })
+      .andWhere('services.date BETWEEN :startDate AND :endDate', { startDate, endDate });
+  }
+
+  private assertDateRange(startDate: string, endDate: string) {
+    const isValidStart = moment(startDate, 'YYYY-MM-DD', true).isValid();
+    const isValidEnd = moment(endDate, 'YYYY-MM-DD', true).isValid();
+
+    if (!isValidStart || !isValidEnd) {
+      throw new BadRequestException('startDate and endDate must use YYYY-MM-DD format');
+    }
+
+    if (moment(startDate).isAfter(moment(endDate))) {
+      throw new BadRequestException('startDate must be before or equal to endDate');
     }
   }
 

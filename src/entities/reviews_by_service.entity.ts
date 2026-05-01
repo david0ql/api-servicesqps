@@ -35,11 +35,11 @@ export class ReviewsByServiceEntity {
   })
   updatedAt: Date;
 
-  @ManyToOne('ServicesEntity', 'reviewsByServices')
+  @ManyToOne('ServicesEntity', 'reviewsByServices', { onDelete: 'CASCADE' })
   @JoinColumn([{ name: "service_id", referencedColumnName: "id" }])
   service: any;
 
   @ManyToOne('ReviewItemsEntity', 'reviewsByServices')
   @JoinColumn([{ name: "review_item_id", referencedColumnName: "id" }])
   reviewItem: any;
-} 
+}
