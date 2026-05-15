@@ -41,6 +41,7 @@ export class CommunitiesService {
       .select([
         'communities.id',
         'communities.communityName',
+        'communities.showInReports',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -89,6 +90,7 @@ export class CommunitiesService {
       .select([
         'communities.id',
         'communities.communityName',
+        'communities.showInReports',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -125,6 +127,7 @@ export class CommunitiesService {
       .select([
         'communities.id',
         'communities.communityName',
+        'communities.showInReports',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -163,6 +166,7 @@ export class CommunitiesService {
       .select([
         'communities.id',
         'communities.communityName',
+        'communities.showInReports',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
