@@ -8,7 +8,7 @@ import type { Content, StyleDictionary, TDocumentDefinitions, BufferOptions, Cus
 import { CostsEntity } from '../../entities/costs.entity';
 import { RecurringCostsEntity } from '../../entities/recurring_costs.entity';
 import { RecurringServicesEntity } from '../../entities/recurring_services.entity';
-import { Between, In, Repository } from 'typeorm';
+import { Between, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { ServicesEntity } from '../../entities/services.entity';
 import { ExtrasByServiceEntity } from '../../entities/extras_by_service.entity';
 import { PrinterService } from '../../printer/printer.service';
@@ -113,6 +113,13 @@ export class ReportsService {
     private readonly textBeeService: TextBeeService,
   ) { }
 
+  private applyReportVisibilityFilter(queryBuilder: SelectQueryBuilder<ServicesEntity>) {
+    return queryBuilder.andWhere(
+      '(services.communityId IS NULL OR community.showInReports IS NULL OR community.showInReports = :showInReports)',
+      { showInReports: true },
+    );
+  }
+
   /** Returns services filtered: excludes those whose day-of-week is in the
    *  recurring service's qaHiddenDays. Only applies to cleaner reports. */
   private async filterQaHiddenServices(services: ServicesEntity[]): Promise<ServicesEntity[]> {
@@ -159,6 +166,8 @@ export class ReportsService {
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
       .where('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek });
+
+    this.applyReportVisibilityFilter(queryBuilder);
 
     const services = await queryBuilder.getMany();
 
@@ -462,6 +471,8 @@ export class ReportsService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
       .where('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek });
 
+    this.applyReportVisibilityFilter(queryBuilder);
+
     const rawServices = await queryBuilder.getMany();
     const services = await this.filterQaHiddenServices(rawServices);
 
@@ -607,6 +618,8 @@ export class ReportsService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
       .where('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek });
 
+    this.applyReportVisibilityFilter(queryBuilder);
+
     const rawServices = await queryBuilder.getMany();
     const services = await this.filterQaHiddenServices(rawServices);
 
@@ -650,9 +663,13 @@ export class ReportsService {
 
     const rawCleanerIds = await this.servicesRepository
       .createQueryBuilder('services')
+      .leftJoin('services.community', 'community')
       .select('DISTINCT services.userId', 'userId')
       .where('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek })
       .andWhere('services.userId IS NOT NULL')
+      .andWhere('(services.communityId IS NULL OR community.showInReports IS NULL OR community.showInReports = :showInReports)', {
+        showInReports: true,
+      })
       .getRawMany<{ userId: string }>();
 
     const cleanerIds = rawCleanerIds.map(row => row.userId).filter(Boolean);
@@ -1197,7 +1214,7 @@ export class ReportsService {
       return null;
     }
 
-    const services = await this.servicesRepository
+    const queryBuilder = this.servicesRepository
       .createQueryBuilder('services')
       .leftJoinAndSelect('services.community', 'community')
       .leftJoinAndSelect('services.type', 'type')
@@ -1209,8 +1226,11 @@ export class ReportsService {
       .andWhere('services.date BETWEEN :startDate AND :endDate', {
         startDate: link.startDate,
         endDate: link.endDate,
-      })
-      .getMany();
+      });
+
+    this.applyReportVisibilityFilter(queryBuilder);
+
+    const services = await queryBuilder.getMany();
 
     const today = moment();
     const cleanerName = cleaner.name || 'Cleaner';

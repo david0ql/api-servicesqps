@@ -22,6 +22,9 @@ export class CommunitiesEntity {
   @Column("varchar", { name: "community_name", length: 80 })
   communityName: string;
 
+  @Column("boolean", { name: "show_in_reports", default: true })
+  showInReports: boolean;
+
   @Column("bigint", {
     name: "supervisor_user_id",
     unsigned: true,
