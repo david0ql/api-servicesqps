@@ -4,12 +4,18 @@ export interface ShareholderShare {
   amount: number;
 }
 
-const SHAREHOLDER_MODEL_CHANGE_DATE = '2026-02-16';
+const TWO_SHAREHOLDERS_MODEL_CHANGE_DATE = '2026-02-16';
+const FELIX_ONLY_MODEL_CHANGE_DATE = '2026-06-01';
 
 export function buildShareholderShares(reportEndDate: string, netProfit: number): ShareholderShare[] {
-  const usesNewModel = reportEndDate >= SHAREHOLDER_MODEL_CHANGE_DATE;
+  const usesFelixOnlyModel = reportEndDate >= FELIX_ONLY_MODEL_CHANGE_DATE;
+  const usesTwoShareholdersModel = reportEndDate >= TWO_SHAREHOLDERS_MODEL_CHANGE_DATE;
 
-  const shareholders = usesNewModel
+  const shareholders = usesFelixOnlyModel
+    ? [
+      { name: 'Felix', percentage: 1 },
+    ]
+    : usesTwoShareholdersModel
     ? [
       { name: 'Hugo', percentage: 0.2 },
       { name: 'Felix', percentage: 0.8 },
