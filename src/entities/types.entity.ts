@@ -32,6 +32,9 @@ export class TypesEntity {
   })
   commission: number;
 
+  @Column("boolean", { name: "show_in_mobile", default: true })
+  showInMobile: boolean;
+
   @Column("bigint", {
     name: "community_id",
     unsigned: true,

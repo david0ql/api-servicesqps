@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNumber, IsString } from "class-validator";
+import { IsBoolean, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateTypeDto {
     @ApiProperty({
@@ -33,6 +33,16 @@ export class CreateTypeDto {
     })
     @IsString()
     commission: number;
+
+    @ApiProperty({
+        description: 'Indica si el tipo debe mostrarse en el móvil',
+        example: true,
+        required: false,
+        default: true,
+    })
+    @IsOptional()
+    @IsBoolean()
+    showInMobile?: boolean;
 
     @ApiProperty({
         description:

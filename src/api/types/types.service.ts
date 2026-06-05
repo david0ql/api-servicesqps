@@ -39,6 +39,7 @@ export class TypesService {
         'types.cleaningType',
         'types.price',
         'types.commission',
+        'types.showInMobile',
         'types.communityId',
         'types.createdAt',
         'types.updatedAt',
@@ -70,6 +71,7 @@ export class TypesService {
         'types.cleaningType',
         'types.price',
         'types.commission',
+        'types.showInMobile',
         'types.communityId',
         'types.createdAt',
         'types.updatedAt',
@@ -94,6 +96,7 @@ export class TypesService {
         'types.cleaningType',
         'types.price',
         'types.commission',
+        'types.showInMobile',
         'types.communityId',
         'types.createdAt',
         'types.updatedAt',
@@ -113,12 +116,40 @@ export class TypesService {
     const type = await this.typesRepository.createQueryBuilder('types')
       .innerJoinAndSelect('types.community', 'community')
       .where('types.communityId = :id', { id })
+      .andWhere('types.showInMobile = :showInMobile', { showInMobile: true })
       .select([
         'types.id',
         'types.description',
         'types.cleaningType',
         'types.price',
         'types.commission',
+        'types.showInMobile',
+        'types.communityId',
+        'types.createdAt',
+        'types.updatedAt',
+        'community.id',
+        'community.communityName',
+      ])
+      .getMany();
+
+    if (!type) {
+      throw new NotFoundException(`Type with ID ${id} not found`);
+    }
+
+    return type;
+  }
+
+  async findAllByCommunities(id: string) {
+    const type = await this.typesRepository.createQueryBuilder('types')
+      .innerJoinAndSelect('types.community', 'community')
+      .where('types.communityId = :id', { id })
+      .select([
+        'types.id',
+        'types.description',
+        'types.cleaningType',
+        'types.price',
+        'types.commission',
+        'types.showInMobile',
         'types.communityId',
         'types.createdAt',
         'types.updatedAt',
