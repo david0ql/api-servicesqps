@@ -138,7 +138,6 @@ export class ReviewsService {
     // Build service update with QA finish location if provided
     const serviceUpdate: Partial<ServicesEntity> = {
       statusId: hasFailedItems ? '3' : '6',
-      comment: createServiceReviewDto.message || (hasFailedItems ? 'Service needs refresh due to failed review items' : 'Service approved'),
     };
 
     if (createServiceReviewDto.latitude != null && createServiceReviewDto.longitude != null) {
