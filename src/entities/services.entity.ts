@@ -177,6 +177,9 @@ export class ServicesEntity {
   @Column({ type: 'date', nullable: true, name: 'kds_week_of' })
   kdsWeekOf: string | null;
 
+  @Column({ type: 'boolean', default: false, name: 'qa_flagged' })
+  qaFlagged: boolean;
+
   @Column("timestamp", {
     name: "created_at",
     default: () => "CURRENT_TIMESTAMP",

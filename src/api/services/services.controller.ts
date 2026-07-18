@@ -81,6 +81,16 @@ export class ServicesController {
     return this.servicesService.getKdsWeek(weekOf, req.user.user);
   }
 
+  @Patch(':id/qa-flag')
+  @UseGuards(AuthGuard('jwt'))
+  updateQaFlag(
+    @Param('id') id: string,
+    @Body() body: { qaFlagged: boolean },
+    @Request() req: any,
+  ) {
+    return this.servicesService.updateQaFlag(id, body.qaFlagged, req.user.user);
+  }
+
   @Patch(':id/kds')
   @UseGuards(AuthGuard('jwt'))
   updateKdsAssignment(
