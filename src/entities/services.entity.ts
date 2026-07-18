@@ -168,8 +168,8 @@ export class ServicesEntity {
   @Column("text", { name: "qa_finish_location_meta", nullable: true })
   qaFinishLocationMeta: string | null;
 
-  @Column({ type: 'enum', enum: ['monday', 'wednesday', 'friday'], nullable: true, name: 'kds_day' })
-  kdsDay: 'monday' | 'wednesday' | 'friday' | null;
+  @Column({ type: 'enum', enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'], nullable: true, name: 'kds_day' })
+  kdsDay: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | null;
 
   @Column({ type: 'int', nullable: true, name: 'kds_order' })
   kdsOrder: number | null;
