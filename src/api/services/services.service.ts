@@ -1139,6 +1139,22 @@ export class ServicesService {
     return { id, kdsDay: service.kdsDay, kdsOrder: service.kdsOrder, kdsWeekOf: service.kdsWeekOf };
   }
 
+  async updateQaFlag(id: string, qaFlagged: boolean, currentUser?: UsersEntity) {
+    const isAdmin = currentUser?.roleId === '1';
+    if (!isAdmin) {
+      throw new ForbiddenException('Only admins can update the QA flag.');
+    }
+
+    const service = await this.servicesRepository.findOne({ where: { id } });
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${id} not found`);
+    }
+
+    service.qaFlagged = Boolean(qaFlagged);
+    await this.servicesRepository.save(service);
+    return { id, qaFlagged: service.qaFlagged };
+  }
+
   private async assertAssignableUser(userId: string) {
     const user = await this.usersRepository.findOne({
       where: { id: userId },
