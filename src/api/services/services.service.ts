@@ -1110,9 +1110,9 @@ export class ServicesService {
       throw new NotFoundException(`Service with ID ${id} not found`);
     }
 
-    const validDays = ['monday', 'wednesday', 'friday', null];
+    const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', null];
     if (!validDays.includes(body.kdsDay as any)) {
-      throw new BadRequestException('kdsDay must be monday, wednesday, friday, or null.');
+      throw new BadRequestException('kdsDay must be monday, tuesday, wednesday, thursday, friday, or null.');
     }
 
     if (body.kdsDay === null) {
