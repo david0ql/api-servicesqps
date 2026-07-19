@@ -1135,8 +1135,16 @@ export class ServicesService {
       service.kdsWeekOf = normalizedWeekOf;
     }
 
+    service.qaFlagged = service.kdsDay !== null;
+
     await this.servicesRepository.save(service);
-    return { id, kdsDay: service.kdsDay, kdsOrder: service.kdsOrder, kdsWeekOf: service.kdsWeekOf };
+    return {
+      id,
+      kdsDay: service.kdsDay,
+      kdsOrder: service.kdsOrder,
+      kdsWeekOf: service.kdsWeekOf,
+      qaFlagged: service.qaFlagged,
+    };
   }
 
   async updateQaFlag(id: string, qaFlagged: boolean, currentUser?: UsersEntity) {
