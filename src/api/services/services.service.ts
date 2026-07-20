@@ -1097,7 +1097,7 @@ export class ServicesService {
 
   async updateKdsAssignment(
     id: string,
-    body: { kdsDay: string | null; kdsOrder: number | null; kdsWeekOf: string | null },
+    body: { kdsDay: string | null; kdsOrder?: number | null; kdsWeekOf?: string | null },
     currentUser?: UsersEntity,
   ) {
     const isAdmin = currentUser?.roleId === '1';
@@ -1120,18 +1120,32 @@ export class ServicesService {
       service.kdsOrder = null;
       service.kdsWeekOf = null;
     } else {
-      if (!Number.isInteger(body.kdsOrder) || (body.kdsOrder as number) < 1) {
+      let normalizedWeekOf: string;
+      if (body.kdsWeekOf == null) {
+        normalizedWeekOf = moment().startOf('isoWeek').format('YYYY-MM-DD');
+      } else {
+        const parsedWeek = moment(body.kdsWeekOf, 'YYYY-MM-DD', true);
+        if (!parsedWeek.isValid()) {
+          throw new BadRequestException('kdsWeekOf must be in YYYY-MM-DD format when kdsDay is set.');
+        }
+        normalizedWeekOf = parsedWeek.startOf('isoWeek').format('YYYY-MM-DD');
+      }
+
+      let order = body.kdsOrder;
+      if (order == null) {
+        const { maxOrder } = await this.servicesRepository
+          .createQueryBuilder('services')
+          .select('MAX(services.kdsOrder)', 'maxOrder')
+          .where('services.kdsWeekOf = :weekOf', { weekOf: normalizedWeekOf })
+          .andWhere('services.kdsDay = :day', { day: body.kdsDay })
+          .getRawOne();
+        order = (Number(maxOrder) || 0) + 1;
+      } else if (!Number.isInteger(order) || order < 1) {
         throw new BadRequestException('kdsOrder must be an integer greater than 0 when kdsDay is set.');
       }
 
-      const parsedWeek = moment(body.kdsWeekOf, 'YYYY-MM-DD', true);
-      if (!parsedWeek.isValid()) {
-        throw new BadRequestException('kdsWeekOf must be in YYYY-MM-DD format when kdsDay is set.');
-      }
-      const normalizedWeekOf = parsedWeek.startOf('isoWeek').format('YYYY-MM-DD');
-
       service.kdsDay = body.kdsDay as any;
-      service.kdsOrder = body.kdsOrder;
+      service.kdsOrder = order;
       service.kdsWeekOf = normalizedWeekOf;
     }
 
