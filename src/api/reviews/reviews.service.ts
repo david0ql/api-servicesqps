@@ -138,6 +138,7 @@ export class ReviewsService {
     // Build service update with QA finish location if provided
     const serviceUpdate: Partial<ServicesEntity> = {
       statusId: hasFailedItems ? '3' : '6',
+      qaFlagged: false,
     };
 
     if (createServiceReviewDto.latitude != null && createServiceReviewDto.longitude != null) {
