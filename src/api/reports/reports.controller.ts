@@ -33,6 +33,19 @@ export class ReportsController {
     pdfDoc.end();
   }
 
+  @Get('/reporte-cleaner-individual')
+  async reporteCleanerIndividual(
+    @Res() response: Response,
+    @Query('userId') userId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string
+  ) {
+    const { fileName, buffer } = await this.reportsService.reporteCleanerIndividual(userId, startDate, endDate);
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    response.end(buffer);
+  }
+
   @Get('/reporte-cleaner-zip')
   async reporteCleanerZip(
     @Res() response: Response,
