@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
@@ -528,7 +528,7 @@ export class ReportsService {
           moment.utc(service.date).format('MM/DD/YYYY'),
           service.community?.communityName ?? 'N/A',
           service.unitNumber ?? 'N/A',
-          'Total:',
+          service.type?.cleaningType ?? 'N/A',
           formatCurrency(Number(service.type?.commission ?? 0)),
           formatCurrency(service.extrasByServices?.reduce((acc, extraByService) => acc + Number(extraByService?.extra?.commission ?? 0), 0) ?? 0),
           formatCurrency(Number(service.totalCleaner ?? 0)),
@@ -600,6 +600,40 @@ export class ReportsService {
     const doc = this.printerService.createPDF(docDefinition);
     doc.info.Title = `Costos semana ${startOfWeek} al ${endOfWeek}`;
     return doc;
+  }
+
+  async reporteCleanerIndividual(userId: string, startDate: string, endDate: string) {
+    const startOfWeek = moment(startDate).format('YYYY-MM-DD');
+    const endOfWeek = moment(endDate).format('YYYY-MM-DD');
+    const today = moment();
+
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'name'],
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const queryBuilder = this.servicesRepository.createQueryBuilder('services');
+
+    queryBuilder
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.status', 'status')
+      .leftJoinAndSelect('services.user', 'user')
+      .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .where('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek })
+      .andWhere('services.userId = :userId', { userId });
+
+    this.applyReportVisibilityFilter(queryBuilder);
+
+    const rawServices = await queryBuilder.getMany();
+    const services = await this.filterQaHiddenServices(rawServices);
+
+    return this.buildCleanerReportBuffer(user.name, services, startOfWeek, endOfWeek, today);
   }
 
   async reporteCleanerZip(startDate: string, endDate: string) {
@@ -1066,7 +1100,7 @@ export class ReportsService {
         moment.utc(service.date).format('MM/DD/YYYY'),
         service.community?.communityName ?? 'N/A',
         service.unitNumber ?? 'N/A',
-        'Total:',
+        service.type?.cleaningType ?? 'N/A',
         formatCurrency(Number(service.type?.commission ?? 0)),
         formatCurrency(service.extrasByServices?.reduce((acc, extraByService) => acc + Number(extraByService?.extra?.commission ?? 0), 0) ?? 0),
         formatCurrency(Number(service.totalCleaner ?? 0)),
