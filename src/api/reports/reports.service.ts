@@ -19,7 +19,6 @@ import { TextBeeService } from '../../textbee/textbee.service';
 import envVars from '../../config/env';
 import { getTenantConfig } from '../../config/tenant-config';
 import { buildShareholderShares } from './shareholder-shares.util';
-import { filterQaTuesdayThursdayPdfServices } from './report-service-filters.util';
 const PdfPrinter = require('pdfmake');
 
 const styles: StyleDictionary = {
@@ -171,7 +170,7 @@ export class ReportsService {
     this.applyReportVisibilityFilter(queryBuilder);
 
     const rawServices = await queryBuilder.getMany();
-    const services = filterQaTuesdayThursdayPdfServices(rawServices);
+    const services = rawServices;
 
     // Agrupar servicios por comunidad
     const servicesByCommunity = new Map<string, ServicesEntity[]>();
@@ -476,8 +475,7 @@ export class ReportsService {
     this.applyReportVisibilityFilter(queryBuilder);
 
     const rawServices = await queryBuilder.getMany();
-    const qaVisibleServices = filterQaTuesdayThursdayPdfServices(rawServices);
-    const services = await this.filterQaHiddenServices(qaVisibleServices);
+    const services = await this.filterQaHiddenServices(rawServices);
 
     // Agrupar por cleaner
     const cleanersMap = new Map<string, ServicesEntity[]>();
@@ -658,8 +656,7 @@ export class ReportsService {
     this.applyReportVisibilityFilter(queryBuilder);
 
     const rawServices = await queryBuilder.getMany();
-    const qaVisibleServices = filterQaTuesdayThursdayPdfServices(rawServices);
-    const services = await this.filterQaHiddenServices(qaVisibleServices);
+    const services = await this.filterQaHiddenServices(rawServices);
 
     const cleanersMap = new Map<string, ServicesEntity[]>();
     services.forEach(service => {
@@ -864,7 +861,7 @@ export class ReportsService {
       .andWhere('services.date BETWEEN :startOfRange AND :endOfRange', { startOfRange, endOfRange });
 
     const rawServices = await queryBuilder.getMany();
-    const services = filterQaTuesdayThursdayPdfServices(rawServices);
+    const services = rawServices;
 
     // Agrupar servicios por tipo
     const servicesByType = new Map<string, ServicesEntity[]>();
@@ -1270,8 +1267,7 @@ export class ReportsService {
     this.applyReportVisibilityFilter(queryBuilder);
 
     const rawServices = await queryBuilder.getMany();
-    const qaVisibleServices = filterQaTuesdayThursdayPdfServices(rawServices);
-    const services = await this.filterQaHiddenServices(qaVisibleServices);
+    const services = await this.filterQaHiddenServices(rawServices);
 
     const today = moment();
     const cleanerName = cleaner.name || 'Cleaner';
