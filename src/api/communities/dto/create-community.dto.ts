@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsString, IsOptional } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsString, IsOptional, IsLatitude, IsLongitude, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateCommunityDto {
     @ApiProperty({ description: 'Nombre de la comunidad', maxLength: 80 })
@@ -26,4 +27,18 @@ export class CreateCommunityDto {
     @IsNotEmpty()
     @IsString()
     companyId: string;
+
+    @ApiProperty({ description: 'Latitud del complex (null para quitar la ubicación)', example: 28.5383, required: false, nullable: true })
+    @IsOptional()
+    @ValidateIf((_, value) => value !== null)
+    @Type(() => Number)
+    @IsLatitude()
+    latitude?: number | null;
+
+    @ApiProperty({ description: 'Longitud del complex (null para quitar la ubicación)', example: -81.3792, required: false, nullable: true })
+    @IsOptional()
+    @ValidateIf((_, value) => value !== null)
+    @Type(() => Number)
+    @IsLongitude()
+    longitude?: number | null;
 }

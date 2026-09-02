@@ -20,8 +20,21 @@ export class CommunitiesService {
     private readonly communitiesRepository: Repository<CommunitiesEntity>,
   ) { }
 
+  /** TypeORM expone las columnas `decimal` como string, y el DTO las recibe como
+   *  number (para poder validarlas con @IsLatitude/@IsLongitude). Esta funcion
+   *  traduce entre ambos mundos; `null` explicito significa "quitar la ubicacion". */
+  private conCoordenadas<T extends { latitude?: number | null; longitude?: number | null }>(dto: T) {
+    const { latitude, longitude, ...resto } = dto;
+
+    return {
+      ...resto,
+      ...(latitude !== undefined ? { latitude: latitude === null ? null : String(latitude) } : {}),
+      ...(longitude !== undefined ? { longitude: longitude === null ? null : String(longitude) } : {}),
+    };
+  }
+
   async create(createCommunityDto: CreateCommunityDto) {
-    const community = this.communitiesRepository.create(createCommunityDto);
+    const community = this.communitiesRepository.create(this.conCoordenadas(createCommunityDto));
 
     await this.communitiesRepository.save(community);
 
@@ -42,6 +55,8 @@ export class CommunitiesService {
         'communities.id',
         'communities.communityName',
         'communities.showInReports',
+        'communities.latitude',
+        'communities.longitude',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -91,6 +106,8 @@ export class CommunitiesService {
         'communities.id',
         'communities.communityName',
         'communities.showInReports',
+        'communities.latitude',
+        'communities.longitude',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -128,6 +145,8 @@ export class CommunitiesService {
         'communities.id',
         'communities.communityName',
         'communities.showInReports',
+        'communities.latitude',
+        'communities.longitude',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -167,6 +186,8 @@ export class CommunitiesService {
         'communities.id',
         'communities.communityName',
         'communities.showInReports',
+        'communities.latitude',
+        'communities.longitude',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -196,14 +217,17 @@ export class CommunitiesService {
   async update(id: string, updateCommunityDto: UpdateCommunityDto) {
     const community = await this.communitiesRepository.preload({
       id,
-      ...updateCommunityDto,
+      ...this.conCoordenadas(updateCommunityDto),
     });
 
     if (!community) {
       throw new NotFoundException(`Community with ID ${id} not found`);
     }
 
-    await this.communitiesRepository.save(updateCommunityDto);
+    // Se guarda la entidad precargada (fila real + cambios), no el DTO suelto:
+    // el DTO no lleva id, y guardarlo tal cual dependia de que el front lo
+    // mandara en el body para no terminar insertando una comunidad nueva.
+    await this.communitiesRepository.save(community);
 
     return community;
   }
