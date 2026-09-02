@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { CommunitiesModule } from './api/communities/communities.module';
+import { MapsModule } from './api/maps/maps.module';
 import { CompaniesModule } from './api/companies/companies.module';
 import { ServicesModule } from './api/services/services.module';
 import { CalendarModule } from './api/calendar/calendar.module';
@@ -46,6 +47,7 @@ import envVars from './config/env';
     UsersModule,
     CompaniesModule,
     CommunitiesModule,
+    MapsModule,
     CostsModule,
     RecurringCostsModule,
     RecurringServicesModule,
