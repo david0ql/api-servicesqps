@@ -1,5 +1,3 @@
-import envVars from '../../config/env';
-
 /**
  * Link de mapa que se anexa al SMS del servicio.
  *
@@ -14,31 +12,6 @@ import envVars from '../../config/env';
  * corruptas: en ese caso el SMS sale igual que siempre, sin link.
  */
 const MAX_DECIMALES = 6; // ~0.1 m de precision, de sobra para ubicar un complex
-
-/**
- * Link que va en el SMS. Se prefiere nuestra propia pagina /m/<id> porque el
- * link directo a Google Maps NO da vista previa util: su og:image ignora las
- * coordenadas y devuelve un mapa de la ubicacion de quien pide la preview.
- * Nuestra pagina si publica el mapa del complex y ademas es mas corta.
- * Si no hay base publica configurada, se cae al link de Google de siempre.
- */
-export function buildServiceMapLink(
-  communityId?: string | null,
-  latitude?: string | number | null,
-  longitude?: string | number | null,
-): string | null {
-  const directo = buildMapLink(latitude, longitude);
-  if (!directo) {
-    return null;
-  }
-
-  const base = (envVars.REPORTS_PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  if (!base || !communityId) {
-    return directo;
-  }
-
-  return `${base}/m/${communityId}`;
-}
 
 export function buildMapLink(
   latitude?: string | number | null,
