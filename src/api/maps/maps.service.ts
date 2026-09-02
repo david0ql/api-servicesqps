@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -71,7 +73,10 @@ export class MapsService {
     const { community, latitude, longitude } = await this.buscarConUbicacion(id);
 
     const base = (envVars.REPORTS_PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-    const imagen = `${base}/m/${id}/img.png`;
+    // El ?v= sale de la coordenada: si mueven el pin cambia la URL y las caches
+    // (Cloudflare, WhatsApp) traen la imagen nueva en vez de la vieja.
+    const version = createHash('sha1').update(`${latitude},${longitude}`).digest('hex').slice(0, 8);
+    const imagen = `${base}/m/${id}/img.png?v=${version}`;
     // Directions: el cleaner viene manejando, le sirve mas que el pin suelto.
     const comoLlegar = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
     const verPin = `https://maps.google.com/?q=${latitude},${longitude}`;
