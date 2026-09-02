@@ -17,6 +17,7 @@ import { PushNotificationsService } from '../../push-notification/push-notificat
 import { UsersEntity } from '../../entities/users.entity';
 import { CommunitiesEntity } from '../../entities/communities.entity';
 import { ServiceStatusId } from '../../constants/service-status.enum';
+import { buildMapLink } from './map-link.util';
 import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 
@@ -727,9 +728,14 @@ export class ServicesService {
   
     const unitNumber = fullService.unitNumber?.trim() || 'Unknown Apartment';
 
+    // El cleaner recibe este SMS al aceptar: si el complex tiene coordenadas
+    // cargadas le anexamos el link del mapa para que sepa a donde ir.
+    const mapLink = buildMapLink(fullService.community?.latitude, fullService.community?.longitude);
+    const mapSuffix = mapLink ? `\nMap: ${mapLink}` : '';
+
     const statusMessages: Record<string, string> = {
       '2': `You have a new service for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
-      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
+      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}${mapSuffix}`,
       '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')}`,
       '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
       '6': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
@@ -746,6 +752,7 @@ export class ServicesService {
         serviceType: fullService.type,
         serviceDate: fullService.date,
         serviceStatus: fullService.status,
+        mapUrl: mapLink,
       },
     };
   

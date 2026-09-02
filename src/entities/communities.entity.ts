@@ -25,6 +25,14 @@ export class CommunitiesEntity {
   @Column("boolean", { name: "show_in_reports", default: true })
   showInReports: boolean;
 
+  // Ubicacion del complex. Se manda como link de mapa en el SMS al cleaner
+  // cuando acepta el servicio. Misma precision que el tracking de servicios.
+  @Column("decimal", { name: "latitude", precision: 10, scale: 7, nullable: true })
+  latitude: string | null;
+
+  @Column("decimal", { name: "longitude", precision: 10, scale: 7, nullable: true })
+  longitude: string | null;
+
   @Column("bigint", {
     name: "supervisor_user_id",
     unsigned: true,
