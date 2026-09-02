@@ -17,7 +17,7 @@ import { PushNotificationsService } from '../../push-notification/push-notificat
 import { UsersEntity } from '../../entities/users.entity';
 import { CommunitiesEntity } from '../../entities/communities.entity';
 import { ServiceStatusId } from '../../constants/service-status.enum';
-import { buildMapLink } from './map-link.util';
+import { buildServiceMapLink } from './map-link.util';
 import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 
@@ -730,7 +730,11 @@ export class ServicesService {
 
     // El cleaner recibe este SMS al aceptar: si el complex tiene coordenadas
     // cargadas le anexamos el link del mapa para que sepa a donde ir.
-    const mapLink = buildMapLink(fullService.community?.latitude, fullService.community?.longitude);
+    const mapLink = buildServiceMapLink(
+      fullService.communityId,
+      fullService.community?.latitude,
+      fullService.community?.longitude,
+    );
     const mapSuffix = mapLink ? `\nMap: ${mapLink}` : '';
 
     const statusMessages: Record<string, string> = {
