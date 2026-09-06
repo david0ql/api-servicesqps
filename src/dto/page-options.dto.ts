@@ -34,6 +34,15 @@ export class PageOptionsDto {
     readonly activeOnly?: boolean;
 
     @ApiPropertyOptional({
+        description: 'Incluir tambien los registros inactivos (ej: comunidades desactivadas). Por defecto solo se devuelven los activos.',
+        example: false,
+    })
+    @IsBoolean()
+    @IsOptional()
+    @Transform(({ value }) => (value === undefined || value === '' ? undefined : value === 'true' || value === true))
+    readonly includeInactive?: boolean;
+
+    @ApiPropertyOptional({
         minimum: 1,
         maximum: 150,
         default: 10,

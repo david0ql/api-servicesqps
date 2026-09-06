@@ -25,6 +25,11 @@ export class CommunitiesEntity {
   @Column("boolean", { name: "show_in_reports", default: true })
   showInReports: boolean;
 
+  // Permite sacar un complex de los selectores de creacion sin borrar su
+  // historia: los servicios pasados siguen contando en calendario y reportes.
+  @Column("boolean", { name: "is_active", default: true })
+  isActive: boolean;
+
   // Ubicacion del complex. Se manda como link de mapa en el SMS al cleaner
   // cuando acepta el servicio. Misma precision que el tracking de servicios.
   @Column("decimal", { name: "latitude", precision: 10, scale: 7, nullable: true })

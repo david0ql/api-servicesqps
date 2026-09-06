@@ -28,6 +28,11 @@ export class CreateCommunityDto {
     @IsString()
     companyId: string;
 
+    @ApiProperty({ description: 'Comunidad activa. Las inactivas no aparecen al crear servicios', example: true, required: false, default: true })
+    @IsOptional()
+    @IsBoolean()
+    isActive?: boolean;
+
     @ApiProperty({ description: 'Latitud del complex (null para quitar la ubicación)', example: 28.5383, required: false, nullable: true })
     @IsOptional()
     @ValidateIf((_, value) => value !== null)
