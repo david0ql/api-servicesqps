@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsString, IsOptional, IsLatitude, IsLongitude, ValidateIf } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsString, IsOptional, IsLatitude, IsLongitude, ValidateIf, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateCommunityDto {
@@ -32,6 +32,20 @@ export class CreateCommunityDto {
     @IsOptional()
     @IsBoolean()
     isActive?: boolean;
+
+    @ApiProperty({ description: 'ID del vendedor asociado que consiguio el complex', example: '220', required: false, nullable: true })
+    @IsOptional()
+    @IsString()
+    vendorUserId?: string | null;
+
+    @ApiProperty({ description: 'Porcentaje de comision del vendedor (0.10 = 10%)', example: 0.10, required: false, nullable: true })
+    @IsOptional()
+    @ValidateIf((_, value) => value !== null)
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    @Max(1)
+    vendorCommissionRate?: number | null;
 
     @ApiProperty({ description: 'Latitud del complex (null para quitar la ubicación)', example: 28.5383, required: false, nullable: true })
     @IsOptional()

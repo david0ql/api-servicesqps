@@ -30,6 +30,22 @@ export class CommunitiesEntity {
   @Column("boolean", { name: "is_active", default: true })
   isActive: boolean;
 
+  // Vendedor asociado que consiguio el complex. Cobra una comision sobre lo
+  // que ese complex deja despues de pagarle a las cleaners.
+  @Column("bigint", { name: "vendor_user_id", unsigned: true, nullable: true })
+  vendorUserId: string | null;
+
+  // Desde cuando aplica la comision. Felix lo definio asi: "aplican desde que
+  // creen una comunidad que haya traido el broker", o sea que los reportes de
+  // semanas anteriores a esta fecha salen sin comision.
+  @Column("date", { name: "vendor_assigned_at", nullable: true })
+  vendorAssignedAt: string | null;
+
+  // Porcentaje pactado. 10% por defecto, configurable por si a futuro se
+  // acuerda distinto con algun vendedor.
+  @Column("decimal", { name: "vendor_commission_rate", precision: 5, scale: 4, nullable: true })
+  vendorCommissionRate: string | null;
+
   // Ubicacion del complex. Se manda como link de mapa en el SMS al cleaner
   // cuando acepta el servicio. Misma precision que el tracking de servicios.
   @Column("decimal", { name: "latitude", precision: 10, scale: 7, nullable: true })
@@ -82,6 +98,10 @@ export class CommunitiesEntity {
   @ManyToOneNoAction(() => UsersEntity, (usersEntity) => usersEntity.managedCommunities)
   @JoinColumn([{ name: "manager_user_id", referencedColumnName: "id" }])
   managerUser: UsersEntity | null;
+
+  @ManyToOneNoAction(() => UsersEntity, (usersEntity) => usersEntity.vendorCommunities)
+  @JoinColumn([{ name: "vendor_user_id", referencedColumnName: "id" }])
+  vendorUser: UsersEntity | null;
 
   @OneToManyNoAction(() => ServicesEntity, (servicesEntity) => servicesEntity.community)
   services: ServicesEntity[];
