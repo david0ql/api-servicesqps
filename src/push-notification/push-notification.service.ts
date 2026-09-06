@@ -11,8 +11,13 @@ import { TextBeeService } from '../textbee/textbee.service';
 
 export interface TokensNotification {
     tokens: string[];
-    users: UsersEntity[];
+    /** Cada destinatario puede llevar su propio texto en `smsBody`. Se usa para
+     *  que la cleaner reciba la unidad enmascarada y el admin la vea completa.
+     *  Si no viene, se usa el `body` general. */
+    users: DestinatarioSms[];
 }
+
+export type DestinatarioSms = UsersEntity & { smsBody?: string };
 
 export interface PushNotification {
     body: string;
@@ -73,7 +78,7 @@ export class PushNotificationsService {
         // Handle SMS notifications
         const smsResults = await Promise.all(
             pushNotification.tokensNotification.users.map(async user => {
-                const result = await this.sendSMS(user.phoneNumber, pushNotification.body);
+                const result = await this.sendSMS(user.phoneNumber, user.smsBody ?? pushNotification.body);
                 if (!result) {
                     this.logger.warn(`Failed to send SMS to user ${user.id} (${user.name}) with phone ${user.phoneNumber}`);
                 }

@@ -11,6 +11,7 @@ import { ReviewItemsGroupedByClassDto } from './dto/review-items-with-class.dto'
 import { CreateServiceReviewDto } from './dto/create-service-review.dto';
 import { TrackServiceLocationDto } from '../services/dto/track-service-location.dto';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
+import { ServiceNotifierService } from '../services/service-notifier.service';
 
 @Injectable()
 export class ReviewsService {
@@ -23,7 +24,7 @@ export class ReviewsService {
     private readonly servicesRepository: Repository<ServicesEntity>,
     @InjectRepository(UsersEntity)
     private readonly usersRepository: Repository<UsersEntity>,
-    private readonly pushNotificationsService: PushNotificationsService,
+    private readonly notifier: ServiceNotifierService,
   ) {}
 
   async getReviewItemsWithClasses(): Promise<ReviewItemsGroupedByClassDto[]> {
@@ -158,8 +159,15 @@ export class ReviewsService {
 
     await this.servicesRepository.update(createServiceReviewDto.serviceId, serviceUpdate);
 
-    if (hasFailedItems) {
-      await this.notifyServiceRefresh(service);
+    // Antes solo se avisaba el refresh: cuando la QA terminaba y todo estaba
+    // bien NO salia ningun mensaje. Ahora se avisan los dos casos.
+    const servicioConRelaciones = await this.servicesRepository.findOne({
+      where: { id: createServiceReviewDto.serviceId },
+      relations: ['community', 'status', 'user', 'type'],
+    });
+
+    if (servicioConRelaciones) {
+      await this.notifier.notificar(hasFailedItems ? 'refresh' : 'finalizado', servicioConRelaciones);
     }
 
     return savedReviews;
@@ -195,58 +203,4 @@ export class ReviewsService {
     };
   }
 
-  private async notifyServiceRefresh(service: ServicesEntity) {
-    const superAdmins = await this.usersRepository.find({
-      where: { roleId: '1' },
-      select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
-    });
-
-    const qaUsers = await this.usersRepository.find({
-      where: { roleId: '7' },
-      select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
-    });
-
-    let serviceCleaner = null;
-    if (service.user?.id) {
-      serviceCleaner = await this.usersRepository.findOne({
-        where: { id: service.user.id },
-        select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
-      });
-    }
-
-    const allUsers = [
-      ...superAdmins,
-      ...qaUsers,
-      ...(serviceCleaner ? [serviceCleaner] : [])
-    ].filter(Boolean);
-
-    const usersWithToken = allUsers
-      .filter(user => user?.token && user.token.trim() !== '')
-      .filter((user, index, self) => 
-        self.findIndex(u => u.token === user.token) === index
-      );
-
-    const usersWithPhone = allUsers
-      .filter(user => user?.phoneNumber && user.phoneNumber.trim() !== '')
-      .filter((user, index, self) => 
-        self.findIndex(u => u.phoneNumber === user.phoneNumber) === index
-      );
-
-    const notification = {
-      body: `Service in ${service.community?.communityName ?? 'Unknown Community'} needs refresh. Review items failed.`,
-      title: 'Service Needs Refresh',
-      data: {
-        serviceId: service.id,
-        serviceType: service.type,
-        serviceDate: service.date,
-        serviceStatus: service.status,
-      },
-      tokensNotification: {
-        tokens: usersWithToken.map(user => user.token),
-        users: usersWithPhone
-      }
-    };
-
-    await this.pushNotificationsService.sendNotification(notification);
-  }
-} 
+}

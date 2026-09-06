@@ -22,8 +22,10 @@ describe('ReviewsService', () => {
       find: jest.fn(async () => []),
       findOne: jest.fn(async () => null),
     };
-    const pushNotificationsService = {
-      sendNotification: jest.fn(),
+    // El aviso al terminar la revision ahora pasa por el despachador central,
+    // que decide destinatarios y textos por evento.
+    const notifier = {
+      notificar: jest.fn(),
     };
 
     const service = new ReviewsService(
@@ -31,14 +33,14 @@ describe('ReviewsService', () => {
       reviewsByServiceRepository as any,
       servicesRepository as any,
       usersRepository as any,
-      pushNotificationsService as any,
+      notifier as any,
     );
 
     return {
       service,
       reviewsByServiceRepository,
       servicesRepository,
-      pushNotificationsService,
+      notifier,
     };
   };
 

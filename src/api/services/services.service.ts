@@ -17,9 +17,9 @@ import { PushNotificationsService } from '../../push-notification/push-notificat
 import { UsersEntity } from '../../entities/users.entity';
 import { CommunitiesEntity } from '../../entities/communities.entity';
 import { ServiceStatusId } from '../../constants/service-status.enum';
-import { buildMapLink } from './map-link.util';
 import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
+import { EventoServicio, ServiceNotifierService } from './service-notifier.service';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -50,6 +50,7 @@ export class ServicesService {
     @InjectRepository(CommunitiesEntity)
     private readonly communitiesRepository: Repository<CommunitiesEntity>,
     private readonly pushNotificationsService: PushNotificationsService,
+    private readonly notifier: ServiceNotifierService,
   ) { }
 
   private addActiveRecurringFilter(queryBuilder: any) {
@@ -453,19 +454,7 @@ export class ServicesService {
       throw new NotFoundException(`Service with ID ${id} not found`);
     }
 
-    const unitNumber = serviceAfterUpdate.unitNumber?.trim() || 'Unknown Apartment';
-    const notification = {
-      body: `Finished by ${serviceAfterUpdate.user?.name ?? 'Unknown'} in ${serviceAfterUpdate.community?.communityName ?? 'Unknown Community'} on ${moment.utc(serviceAfterUpdate.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
-      title: 'Service Status Updated',
-      data: {
-        serviceId: serviceAfterUpdate.id,
-        serviceType: serviceAfterUpdate.type,
-        serviceDate: serviceAfterUpdate.date,
-        serviceStatus: serviceAfterUpdate.status,
-      },
-    };
-
-    await this.notifyInterestedParticipants(serviceAfterUpdate, notification);
+    await this.notifier.notificar('completado', serviceAfterUpdate);
 
     return this.findOne(id);
   }
@@ -558,94 +547,7 @@ export class ServicesService {
     });
 
     // Obtener el usuario que está creando el servicio
-    const creatingUser = await this.usersRepository.findOne({
-      where: { id: createServiceDto.userId },
-      select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
-    });
-
-    // Obtener super admins
-    const superAdmins = await this.usersRepository.find({
-      where: { roleId: '1' },
-      select: ['id', 'token', 'phoneNumber', 'name', 'roleId'],
-    });
-
-    // Obtener manager y supervisor de la comunidad
-    const community = await this.communitiesRepository.findOne({
-      where: { id: service.communityId },
-      relations: ['supervisorUser', 'managerUser'],
-    });
-
-    const communityUsers = [
-      community?.supervisorUser,
-      community?.managerUser
-    ].filter(Boolean);
-
-    // Combinar todos los usuarios que deben recibir notificación
-    const allUsers = [
-      creatingUser,
-      ...superAdmins,
-      ...communityUsers
-    ].filter(Boolean);
-
-    // Filtrar usuarios según el status y su rol (para creación, status es 1 - Created)
-    const filteredUsers = allUsers.filter(user => {
-      const statusId = fullService.status?.id; // Status 1 - Created
-      const userRoleId = user?.roleId;
-
-      // Si el status es 1 (Created), 2 (Pending) o 5 (Completed), todos los usuarios reciben notificación
-      if (statusId === '1' || statusId === '2' || statusId === '5') {
-        return true;
-      }
-
-      // Para otros status (3, 4, 6), managers (roleId: '3') y supervisores (roleId: '6') NO reciben notificación
-      if (userRoleId === '3' || userRoleId === '6') {
-        return false;
-      }
-
-      // Para otros roles, reciben notificación para todos los status
-      return true;
-    });
-
-    // Separar usuarios con token y teléfono
-    const usersWithToken = filteredUsers
-      .filter(user => user?.token && user.token.trim() !== '')
-      .filter((user, index, self) => 
-        self.findIndex(u => u.token === user.token) === index
-      );
-
-    const usersWithPhone = filteredUsers
-      .filter(user => user?.phoneNumber && user.phoneNumber.trim() !== '')
-      .filter((user, index, self) => 
-        self.findIndex(u => u.phoneNumber === user.phoneNumber) === index
-      );
-
-    console.log('Filtered users by role and status (create):', filteredUsers.map(u => ({ 
-      id: u.id, 
-      name: u.name, 
-      roleId: u.roleId, 
-      token: u.token ? 'has_token' : 'no_token',
-      phone: u.phoneNumber ? 'has_phone' : 'no_phone'
-    })));
-    console.log('Users with token:', usersWithToken);
-    console.log('Users with phone:', usersWithPhone);
-
-    const notification = {
-      body: `New service created for ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${fullService.unitNumber}`,
-      title: 'New Service Created',
-      data: {
-        serviceId: service.id,
-        serviceType: service.type,
-        serviceDate: service.date,
-        serviceStatus: service.status,
-      },
-      tokensNotification: {
-        tokens: usersWithToken.map(user => user.token),
-        users: usersWithPhone
-      }
-    };
-
-    // Enviar notificaciones
-    await this.pushNotificationsService.sendNotification(notification);
+    await this.notifier.notificar('creado', fullService);
 
     return {
       service: fullService,
@@ -726,37 +628,20 @@ export class ServicesService {
       throw new NotFoundException(`Service with ID ${id} not found after update`);
     }
   
-    const unitNumber = fullService.unitNumber?.trim() || 'Unknown Apartment';
-
-    // El cleaner recibe este SMS al aceptar: si el complex tiene coordenadas
-    // cargadas le anexamos el link del mapa para que sepa a donde ir.
-    const mapLink = buildMapLink(fullService.community?.latitude, fullService.community?.longitude);
-    const mapSuffix = mapLink ? `\nMap: ${mapLink}` : '';
-
-    const statusMessages: Record<string, string> = {
-      '2': `You have a new service for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in ${fullService.community?.communityName ?? 'Unknown Community'}`,
-      '3': `Approved by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}${mapSuffix}`,
-      '4': `The cleaner ${fullService.user?.name ?? 'Unknown'} has rejected the service in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')}`,
-      '5': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
-      '6': `Finished by ${fullService.user?.name ?? 'Unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} on ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`,
+    // Cada cambio de estado es un evento distinto y va a destinatarios
+    // distintos (flujo confirmado por Felix el 05/09/2026).
+    const eventoPorEstado: Record<string, EventoServicio> = {
+      '2': 'asignado',
+      '3': 'aceptado',
+      '4': 'rechazado',
+      '5': 'completado',
+      '6': 'finalizado',
     };
-  
-    const statusMessage = statusMessages[fullService.status?.id]
-      ?? `Service status updated to ${fullService.status?.statusName ?? 'unknown'} in ${fullService.community?.communityName ?? 'Unknown Community'} for ${moment.utc(fullService.date).format('MM/DD/YYYY')} in apartment number ${unitNumber}`;
 
-    const notification = {
-      body: statusMessage,
-      title: 'Service Status Updated',
-      data: {
-        serviceId: fullService.id,
-        serviceType: fullService.type,
-        serviceDate: fullService.date,
-        serviceStatus: fullService.status,
-        mapUrl: mapLink,
-      },
-    };
-  
-    this.notifyInterestedParticipants(fullService, notification);
+    const evento = eventoPorEstado[fullService.status?.id];
+    if (evento) {
+      await this.notifier.notificar(evento, fullService);
+    }
   
     return fullService;
   }
@@ -772,20 +657,7 @@ export class ServicesService {
     }
 
     const communityName = service.community?.communityName ?? 'Unknown Community';
-    const unitNumber = service.unitNumber?.trim() || 'Unknown Apartment';
-
-    const notification = {
-      body: `The service has been deleted for apartment ${unitNumber} in ${communityName}`,
-      title: 'Service Removed',
-      data: {
-        serviceId: service.id,
-        serviceType: service.type,
-        serviceDate: service.date,
-        serviceStatus: service.status,
-      },
-    };
-
-    this.notifyInterestedParticipants(service, notification)
+    await this.notifier.notificar('eliminado', service);
 
     await this.servicesRepository.manager.transaction(async (manager) => {
       await manager.delete(ReviewsByServiceEntity, { serviceId: id });
@@ -913,109 +785,6 @@ export class ServicesService {
     }
 
     return JSON.stringify(payload);
-  }
-
-  private async notifyInterestedParticipants(
-    service: ServicesEntity,
-    notification: { body: string; title: string; data: any }
-  ) {
-    const superAdmins = await this.usersRepository.find({
-      where: { roleId: '1' },
-      select: ['id', 'token', 'phoneNumber', 'roleId'],
-    });
-
-    const communities = await this.communitiesRepository.find({
-      where: { id: service.communityId },
-      relations: ['supervisorUser', 'managerUser'],
-    });
-
-    const includeCommunityUsers = service.status?.id === '5';
-
-    const communityUserIds = includeCommunityUsers
-      ? communities.flatMap(c => [c.supervisorUser?.id, c.managerUser?.id]).filter(Boolean)
-      : [];
-
-    const fullCommunityUsers = communityUserIds.length
-      ? await this.usersRepository.findBy({
-        id: In(communityUserIds),
-      })
-      : [];
-
-    let serviceUser = null;
-    if (service.user?.id) {
-      serviceUser = await this.usersRepository.findOne({
-        where: { id: service.user.id },
-        select: ['id', 'token', 'phoneNumber', 'roleId'],
-      });
-    }
-
-    // Separar usuarios con token y usuarios con teléfono
-    const allUsers = [
-      ...(serviceUser ? [serviceUser] : []),
-      ...superAdmins,
-      ...fullCommunityUsers,
-    ];
-
-    // Filtrar usuarios según el status y su rol
-    const filteredUsers = allUsers.filter(user => {
-      const statusId = service.status?.id;
-      const userRoleId = user?.roleId;
-
-      // Si el status es 1 (Created), 2 (Pending) o 5 (Completed), todos los usuarios reciben notificación
-      if (statusId === '1' || statusId === '2' || statusId === '5') {
-        return true;
-      }
-
-      // Para otros status (3, 4, 6), managers (roleId: '3') y supervisores (roleId: '6') NO reciben notificación
-      if (userRoleId === '3' || userRoleId === '6') {
-        return false;
-      }
-
-      // Para otros roles, reciben notificación para todos los status
-      return true;
-    });
-
-    // Usuarios con token válido para push notifications
-    const usersWithToken = filteredUsers
-      .filter(user => user?.token && user.token.trim() !== '')
-      .filter((user, index, self) => 
-        self.findIndex(u => u.token === user.token) === index
-      );
-
-    // Usuarios con número de teléfono para SMS
-    const usersWithPhone = filteredUsers
-      .filter(user => user?.phoneNumber && user.phoneNumber.trim() !== '')
-      .filter((user, index, self) => 
-        self.findIndex(u => u.phoneNumber === user.phoneNumber) === index
-      );
-
-    const smsUsers = service.status?.id === '6'
-      ? usersWithPhone.filter((user) => user.roleId === '1' || user.roleId === '4')
-      : usersWithPhone;
-
-    console.log('Filtered users by role and status:', filteredUsers.map(u => ({ 
-      id: u.id, 
-      name: u.name, 
-      roleId: u.roleId, 
-      token: u.token ? 'has_token' : 'no_token',
-      phone: u.phoneNumber ? 'has_phone' : 'no_phone'
-    })));
-    console.log('Users with token:', usersWithToken.map(u => ({ id: u.id, name: u.name, roleId: u.roleId, token: u.token })));
-    console.log('Users with phone:', usersWithPhone.map(u => ({ id: u.id, name: u.name, roleId: u.roleId, phone: u.phoneNumber })));
-    console.log('SMS users:', smsUsers.map(u => ({ id: u.id, name: u.name, roleId: u.roleId, phone: u.phoneNumber })));
-
-    const uniqueTokens = usersWithToken.map(u => u.token);
-
-    return this.pushNotificationsService.sendNotification({
-      body: notification.body,
-      title: notification.title,
-      data: notification.data,
-      sound: 'default',
-      tokensNotification: {
-        tokens: uniqueTokens,
-        users: smsUsers,
-      },
-    });
   }
 
   async getKdsWeek(weekOf: string, currentUser?: UsersEntity) {
