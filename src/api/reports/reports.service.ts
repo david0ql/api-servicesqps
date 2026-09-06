@@ -423,6 +423,31 @@ export class ReportsService {
     ];
 
     // Integrar todos los reportes en un solo PDF
+    // Tipado explicito: dentro de un spread condicional TypeScript pierde el
+    // tipado contextual y `margin` termina como number[] en vez de tupla.
+    const bloqueVendedores: Content[] = comisionesVendedores.length
+      ? [
+          {
+            text: 'Comisiones de Vendedores Asociados',
+            style: 'subheader',
+            margin: [0, 20, 0, 10],
+          },
+          {
+            layout: 'customLayout01',
+            table: {
+              headerRows: 1,
+              widths: ['*', '*', 'auto', 'auto', 'auto'],
+              body: vendedoresTableBody,
+            },
+          },
+          {
+            text: `Neto a cobrar del socio despues de comisiones: ${formatCurrency(netoSocioDespuesVendedores)}`,
+            style: 'subheader',
+            margin: [0, 10, 0, 0],
+          },
+        ]
+      : [];
+
     const docDefinition: TDocumentDefinitions = {
       styles,
       pageMargins: [40, 120, 40, 60],
@@ -470,28 +495,7 @@ export class ReportsService {
             body: comisionesTableBody
           }
         },
-        ...(comisionesVendedores.length
-          ? [
-              {
-                text: 'Comisiones de Vendedores Asociados',
-                style: 'subheader',
-                margin: [0, 20, 0, 10],
-              },
-              {
-                layout: 'customLayout01',
-                table: {
-                  headerRows: 1,
-                  widths: ['*', '*', 'auto', 'auto', 'auto'],
-                  body: vendedoresTableBody,
-                },
-              },
-              {
-                text: `Neto a cobrar del socio despues de comisiones: ${formatCurrency(netoSocioDespuesVendedores)}`,
-                style: 'subheader',
-                margin: [0, 10, 0, 0],
-              },
-            ]
-          : []),
+        ...bloqueVendedores,
         {
           text: 'Weekly Costs',
           style: 'subheader',
