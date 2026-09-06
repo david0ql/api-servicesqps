@@ -1,9 +1,13 @@
-import { Controller, Get, Param, Res, Query, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Param, Res, Query, NotFoundException, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import archiver from 'archiver';
 
 import { Response } from 'express';
 
 import { ReportsService } from './reports.service';
+
+const ROL_VENDEDOR = '8';
+const ROL_ADMIN = '1';
 
 @Controller('reports')
 export class ReportsController {
@@ -31,6 +35,21 @@ export class ReportsController {
     response.setHeader('Content-Type', 'application/pdf');
     pdfDoc.pipe(response);
     pdfDoc.end();
+  }
+
+  /** El vendedor solo puede ver LO SUYO: el id sale del token, no de la URL. */
+  @Get('/mis-comisiones')
+  @UseGuards(AuthGuard('jwt'))
+  async misComisiones(
+    @Request() req: any,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const usuario = req.user.user;
+    if (usuario.roleId !== ROL_VENDEDOR && usuario.roleId !== ROL_ADMIN) {
+      throw new ForbiddenException('Solo los vendedores asociados pueden consultar sus comisiones.');
+    }
+    return this.reportsService.reporteVendedor(usuario.id, startDate, endDate);
   }
 
   @Get('/reporte-cleaner-individual')

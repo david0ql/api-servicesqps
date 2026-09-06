@@ -60,6 +60,10 @@ export class UsersEntity {
   @OneToManyNoAction(() => CommunitiesEntity, (communitiesEntity) => communitiesEntity.managerUser)
   managedCommunities: CommunitiesEntity[];
 
+  /** Complex que este vendedor asociado consiguio para QPS. */
+  @OneToManyNoAction(() => CommunitiesEntity, (communitiesEntity) => communitiesEntity.vendorUser)
+  vendorCommunities: CommunitiesEntity[];
+
   @OneToManyNoAction(() => ServicesEntity, (servicesEntity) => servicesEntity.user)
   services: ServicesEntity[];
 

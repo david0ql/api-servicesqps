@@ -19,6 +19,7 @@ import { TextBeeService } from '../../textbee/textbee.service';
 import envVars from '../../config/env';
 import { getTenantConfig } from '../../config/tenant-config';
 import { buildShareholderShares } from './shareholder-shares.util';
+import { calcularComisionesVendedores, totalComisiones } from './vendor-commissions.util';
 const PdfPrinter = require('pdfmake');
 
 const styles: StyleDictionary = {
@@ -160,6 +161,7 @@ export class ReportsService {
 
     queryBuilder
       .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('community.vendorUser', 'vendorUser')
       .leftJoinAndSelect('services.type', 'type')
       .leftJoinAndSelect('services.status', 'status')
       .leftJoinAndSelect('services.user', 'user')
@@ -252,6 +254,13 @@ export class ReportsService {
           amount: netProfit * shareholder.percentage,
         }))
       : buildShareholderShares(endOfWeek, netProfit);
+
+    // Comisiones de los vendedores asociados (brokers). Se calculan sobre lo
+    // que cada complex deja despues de pagarle a las cleaners, y se descuentan
+    // del neto a cobrar del socio como un pago mas de la semana.
+    const comisionesVendedores = calcularComisionesVendedores(services);
+    const totalVendedores = totalComisiones(comisionesVendedores);
+    const netoSocioDespuesVendedores = Number((netProfit - totalVendedores).toFixed(2));
 
     // Generar tabla agrupada por comunidad
     const tableBody = [
@@ -371,6 +380,38 @@ export class ReportsService {
       comisionesTableWidths = ['*', 'auto', 'auto'];
     }
 
+    // Tabla nueva: desglose de lo que gana cada vendedor asociado, por complex.
+    const vendedoresTableBody: any[] = [
+      ['Vendedor', 'Complex', 'Base (neto del complex)', '%', 'Comisión'].map(header => ({
+        text: header, fillColor: '#7b90be', color: '#ffffff',
+      })),
+    ];
+
+    comisionesVendedores.forEach((vendedor) => {
+      vendedor.complexes.forEach((complex, indice) => {
+        vendedoresTableBody.push([
+          indice === 0 ? vendedor.vendorName : '',
+          complex.communityName,
+          formatCurrency(complex.base),
+          `${(complex.tasa * 100).toFixed(0)}%`,
+          formatCurrency(complex.comision),
+        ]);
+      });
+      vendedoresTableBody.push([
+        { text: `Total ${vendedor.vendorName}`, fillColor: '#e6e6e6', color: '#000000' },
+        { text: '', fillColor: '#e6e6e6', color: '#000000' },
+        { text: formatCurrency(vendedor.base), fillColor: '#e6e6e6', color: '#000000' },
+        { text: '', fillColor: '#e6e6e6', color: '#000000' },
+        { text: formatCurrency(vendedor.comision), fillColor: '#e6e6e6', color: '#000000' },
+      ]);
+    });
+
+    vendedoresTableBody.push(
+      ['', '', '', 'Total', formatCurrency(totalVendedores)].map(celda => ({
+        text: celda, fillColor: '#acb3c1', color: '#000000',
+      })),
+    );
+
     const costosTableBody = [
       ['Date', 'Description', 'Amount'],
       ...costs.map(cost => [
@@ -429,6 +470,28 @@ export class ReportsService {
             body: comisionesTableBody
           }
         },
+        ...(comisionesVendedores.length
+          ? [
+              {
+                text: 'Comisiones de Vendedores Asociados',
+                style: 'subheader',
+                margin: [0, 20, 0, 10],
+              },
+              {
+                layout: 'customLayout01',
+                table: {
+                  headerRows: 1,
+                  widths: ['*', '*', 'auto', 'auto', 'auto'],
+                  body: vendedoresTableBody,
+                },
+              },
+              {
+                text: `Neto a cobrar del socio despues de comisiones: ${formatCurrency(netoSocioDespuesVendedores)}`,
+                style: 'subheader',
+                margin: [0, 10, 0, 0],
+              },
+            ]
+          : []),
         {
           text: 'Weekly Costs',
           style: 'subheader',
@@ -601,6 +664,65 @@ export class ReportsService {
     const doc = this.printerService.createPDF(docDefinition);
     doc.info.Title = `Costos semana ${startOfWeek} al ${endOfWeek}`;
     return doc;
+  }
+
+  /**
+   * Reporte del vendedor asociado: SOLO sus complex y su comision.
+   * El id sale del usuario autenticado, nunca de un parametro, para que un
+   * vendedor no pueda pedir los datos de otro cambiando la URL.
+   */
+  async reporteVendedor(vendorUserId: string, startDate: string, endDate: string) {
+    const inicio = moment(startDate).format('YYYY-MM-DD');
+    const fin = moment(endDate).format('YYYY-MM-DD');
+
+    const armarPeriodo = async (desde: string, hasta: string) => {
+      const queryBuilder = this.servicesRepository.createQueryBuilder('services')
+        .leftJoinAndSelect('services.community', 'community')
+        .leftJoinAndSelect('community.vendorUser', 'vendorUser')
+        .leftJoinAndSelect('services.type', 'type')
+        .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
+        .leftJoinAndSelect('extrasByServices.extra', 'extra')
+        .where('services.date BETWEEN :desde AND :hasta', { desde, hasta })
+        .andWhere('community.vendorUserId = :vendorUserId', { vendorUserId });
+
+      this.applyReportVisibilityFilter(queryBuilder);
+
+      const servicios = await queryBuilder.getMany();
+      const comisiones = calcularComisionesVendedores(servicios);
+      // Al filtrar por vendorUserId solo puede venir este vendedor.
+      return comisiones[0] ?? { vendorUserId, vendorName: '', base: 0, comision: 0, complexes: [] };
+    };
+
+    const periodo = await armarPeriodo(inicio, fin);
+
+    // Comparativo: mismo numero de dias inmediatamente anterior.
+    const dias = Math.max(1, moment(fin).diff(moment(inicio), 'days') + 1);
+    const anteriorFin = moment(inicio).subtract(1, 'day');
+    const anterior = await armarPeriodo(
+      anteriorFin.clone().subtract(dias - 1, 'days').format('YYYY-MM-DD'),
+      anteriorFin.format('YYYY-MM-DD'),
+    );
+
+    // Acumulado del mes en que cae la fecha final del periodo.
+    const mes = await armarPeriodo(
+      moment(fin).startOf('month').format('YYYY-MM-DD'),
+      moment(fin).endOf('month').format('YYYY-MM-DD'),
+    );
+
+    const vendedor = await this.usersRepository.findOne({
+      where: { id: vendorUserId },
+      select: ['id', 'name', 'email'],
+    });
+
+    return {
+      vendedor: { id: vendorUserId, nombre: vendedor?.name ?? '' },
+      periodo: { desde: inicio, hasta: fin, base: periodo.base, comision: periodo.comision, complexes: periodo.complexes },
+      comparativo: {
+        periodoAnterior: { comision: anterior.comision, base: anterior.base },
+        variacion: anterior.comision === 0 ? null : Number((((periodo.comision - anterior.comision) / anterior.comision) * 100).toFixed(1)),
+      },
+      acumuladoMes: { comision: mes.comision, base: mes.base },
+    };
   }
 
   async reporteCleanerIndividual(userId: string, startDate: string, endDate: string) {

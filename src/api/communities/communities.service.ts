@@ -2,6 +2,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { Repository } from 'typeorm';
+import moment from 'moment-timezone';
 
 import { CreateCommunityDto } from './dto/create-community.dto';
 import { UpdateCommunityDto } from './dto/update-community.dto';
@@ -23,6 +24,27 @@ export class CommunitiesService {
   /** TypeORM expone las columnas `decimal` como string, y el DTO las recibe como
    *  number (para poder validarlas con @IsLatitude/@IsLongitude). Esta funcion
    *  traduce entre ambos mundos; `null` explicito significa "quitar la ubicacion". */
+  /** Sella la fecha desde la que aplica la comision la primera vez que se le
+   *  asigna vendedor al complex. Felix: "las comisiones aplican desde que creen
+   *  una comunidad que haya traido el broker". */
+  private conFechaDeVendedor<T extends { vendorUserId?: string | null }>(
+    dto: T,
+    anterior?: CommunitiesEntity | null,
+  ) {
+    if (dto.vendorUserId === undefined) return dto;
+
+    if (!dto.vendorUserId) {
+      return { ...dto, vendorAssignedAt: null };
+    }
+
+    const cambioDeVendedor = anterior?.vendorUserId !== dto.vendorUserId;
+    if (cambioDeVendedor || !anterior?.vendorAssignedAt) {
+      return { ...dto, vendorAssignedAt: moment().format('YYYY-MM-DD') };
+    }
+
+    return dto;
+  }
+
   private conCoordenadas<T extends { latitude?: number | null; longitude?: number | null }>(dto: T) {
     const { latitude, longitude, ...resto } = dto;
 
@@ -34,7 +56,9 @@ export class CommunitiesService {
   }
 
   async create(createCommunityDto: CreateCommunityDto) {
-    const community = this.communitiesRepository.create(this.conCoordenadas(createCommunityDto));
+    const community = this.communitiesRepository.create(
+      this.conFechaDeVendedor(this.conCoordenadas(createCommunityDto)) as any,
+    );
 
     await this.communitiesRepository.save(community);
 
@@ -46,6 +70,7 @@ export class CommunitiesService {
       .leftJoinAndSelect('communities.supervisorUser', 'supervisorUser')
       .leftJoinAndSelect('communities.managerUser', 'managerUser')
       .leftJoinAndSelect('communities.company', 'company')
+      .leftJoinAndSelect('communities.vendorUser', 'vendorUser')
       .leftJoinAndSelect('supervisorUser.role', 'supervisorRole')
       .leftJoinAndSelect('managerUser.role', 'managerRole')
       .orderBy('communities.createdAt', pageOptionsDto.order)
@@ -56,6 +81,9 @@ export class CommunitiesService {
         'communities.communityName',
         'communities.showInReports',
         'communities.isActive',
+        'communities.vendorUserId',
+        'communities.vendorAssignedAt',
+        'communities.vendorCommissionRate',
         'communities.latitude',
         'communities.longitude',
         'communities.createdAt',
@@ -70,6 +98,8 @@ export class CommunitiesService {
         'managerUser.phoneNumber',
         'company.id',
         'company.companyName',
+        'vendorUser.id',
+        'vendorUser.name',
         'supervisorRole.id',
         'supervisorRole.name',
         'managerRole.id',
@@ -108,6 +138,7 @@ export class CommunitiesService {
       .leftJoinAndSelect('communities.supervisorUser', 'supervisorUser')
       .leftJoinAndSelect('communities.managerUser', 'managerUser')
       .leftJoinAndSelect('communities.company', 'company')
+      .leftJoinAndSelect('communities.vendorUser', 'vendorUser')
       .leftJoinAndSelect('supervisorUser.role', 'supervisorRole')
       .leftJoinAndSelect('managerUser.role', 'managerRole')
       .orderBy('communities.createdAt', pageOptionsDto.order)
@@ -118,6 +149,9 @@ export class CommunitiesService {
         'communities.communityName',
         'communities.showInReports',
         'communities.isActive',
+        'communities.vendorUserId',
+        'communities.vendorAssignedAt',
+        'communities.vendorCommissionRate',
         'communities.latitude',
         'communities.longitude',
         'communities.createdAt',
@@ -132,6 +166,8 @@ export class CommunitiesService {
         'managerUser.phoneNumber',
         'company.id',
         'company.companyName',
+        'vendorUser.id',
+        'vendorUser.name',
         'supervisorRole.id',
         'supervisorRole.name',
         'managerRole.id',
@@ -159,6 +195,7 @@ export class CommunitiesService {
       .leftJoinAndSelect('communities.supervisorUser', 'supervisorUser')
       .leftJoinAndSelect('communities.managerUser', 'managerUser')
       .leftJoinAndSelect('communities.company', 'company')
+      .leftJoinAndSelect('communities.vendorUser', 'vendorUser')
       .leftJoinAndSelect('supervisorUser.role', 'supervisorRole')
       .leftJoinAndSelect('managerUser.role', 'managerRole')
       .where('communities.supervisorUserId = :id OR communities.managerUserId = :id', { id })
@@ -167,6 +204,9 @@ export class CommunitiesService {
         'communities.communityName',
         'communities.showInReports',
         'communities.isActive',
+        'communities.vendorUserId',
+        'communities.vendorAssignedAt',
+        'communities.vendorCommissionRate',
         'communities.latitude',
         'communities.longitude',
         'communities.createdAt',
@@ -181,6 +221,8 @@ export class CommunitiesService {
         'managerUser.phoneNumber',
         'company.id',
         'company.companyName',
+        'vendorUser.id',
+        'vendorUser.name',
         'supervisorRole.id',
         'supervisorRole.name',
         'managerRole.id',
@@ -201,6 +243,7 @@ export class CommunitiesService {
       .leftJoinAndSelect('communities.supervisorUser', 'supervisorUser')
       .leftJoinAndSelect('communities.managerUser', 'managerUser')
       .leftJoinAndSelect('communities.company', 'company')
+      .leftJoinAndSelect('communities.vendorUser', 'vendorUser')
       .leftJoinAndSelect('supervisorUser.role', 'supervisorRole')
       .leftJoinAndSelect('managerUser.role', 'managerRole')
       .where('communities.id = :id', { id })
@@ -209,6 +252,9 @@ export class CommunitiesService {
         'communities.communityName',
         'communities.showInReports',
         'communities.isActive',
+        'communities.vendorUserId',
+        'communities.vendorAssignedAt',
+        'communities.vendorCommissionRate',
         'communities.latitude',
         'communities.longitude',
         'communities.createdAt',
@@ -223,6 +269,8 @@ export class CommunitiesService {
         'managerUser.phoneNumber',
         'company.id',
         'company.companyName',
+        'vendorUser.id',
+        'vendorUser.name',
         'supervisorRole.id',
         'supervisorRole.name',
         'managerRole.id',
@@ -238,10 +286,15 @@ export class CommunitiesService {
   }
 
   async update(id: string, updateCommunityDto: UpdateCommunityDto) {
+    const anterior = await this.communitiesRepository.findOne({
+      where: { id },
+      select: ['id', 'vendorUserId', 'vendorAssignedAt'],
+    });
+
     const community = await this.communitiesRepository.preload({
       id,
-      ...this.conCoordenadas(updateCommunityDto),
-    });
+      ...this.conFechaDeVendedor(this.conCoordenadas(updateCommunityDto), anterior),
+    } as any);
 
     if (!community) {
       throw new NotFoundException(`Community with ID ${id} not found`);
