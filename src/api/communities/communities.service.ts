@@ -55,6 +55,7 @@ export class CommunitiesService {
         'communities.id',
         'communities.communityName',
         'communities.showInReports',
+        'communities.isActive',
         'communities.latitude',
         'communities.longitude',
         'communities.createdAt',
@@ -85,6 +86,10 @@ export class CommunitiesService {
       .orWhere('supervisorRole.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
       .orWhere('managerRole.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` });
 
+    if (!pageOptionsDto.includeInactive) {
+      searchedItemsByWord.andWhere('communities.isActive = :isActive', { isActive: true });
+    }
+
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount();
 
     const pageMetaDto = new PageMetaDto({ totalCount, pageOptionsDto });
@@ -92,6 +97,12 @@ export class CommunitiesService {
     return new PageDto(items, pageMetaDto);
   }
 
+  /**
+   * Por defecto devuelve SOLO comunidades activas. Es a proposito: la app movil
+   * consume este mismo endpoint sin poder mandar parametros nuevos, y asi
+   * respeta el filtro sin publicar una version nueva en las tiendas.
+   * El listado de administracion pide includeInactive=true para verlas todas.
+   */
   async findAll(pageOptionsDto: PageOptionsDto): Promise<PageDto<CommunitiesEntity>> {
     const queryBuilder = this.communitiesRepository.createQueryBuilder('communities')
       .leftJoinAndSelect('communities.supervisorUser', 'supervisorUser')
@@ -106,6 +117,7 @@ export class CommunitiesService {
         'communities.id',
         'communities.communityName',
         'communities.showInReports',
+        'communities.isActive',
         'communities.latitude',
         'communities.longitude',
         'communities.createdAt',
@@ -126,6 +138,10 @@ export class CommunitiesService {
         'managerRole.name',
       ]);
 
+    if (!pageOptionsDto.includeInactive) {
+      queryBuilder.andWhere('communities.isActive = :isActive', { isActive: true });
+    }
+
     const [items, totalCount] = await queryBuilder.getManyAndCount();
 
     const pageMetaDto = new PageMetaDto({ totalCount, pageOptionsDto });
@@ -133,6 +149,11 @@ export class CommunitiesService {
     return new PageDto(items, pageMetaDto);
   }
 
+  /**
+   * NO filtra por activas a proposito: este endpoint alimenta tambien el
+   * listado de servicios del manager (services/by-communities). Si filtrara,
+   * se le esconderian los servicios historicos de un complex desactivado.
+   */
   async findAllByManager(id: string) {
     const queryBuilder = this.communitiesRepository.createQueryBuilder('communities')
       .leftJoinAndSelect('communities.supervisorUser', 'supervisorUser')
@@ -145,6 +166,7 @@ export class CommunitiesService {
         'communities.id',
         'communities.communityName',
         'communities.showInReports',
+        'communities.isActive',
         'communities.latitude',
         'communities.longitude',
         'communities.createdAt',
@@ -186,6 +208,7 @@ export class CommunitiesService {
         'communities.id',
         'communities.communityName',
         'communities.showInReports',
+        'communities.isActive',
         'communities.latitude',
         'communities.longitude',
         'communities.createdAt',
