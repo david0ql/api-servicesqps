@@ -8,6 +8,7 @@ import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity
 import { ServicesEntity } from '../../entities/services.entity';
 import { UsersEntity } from '../../entities/users.entity';
 import { NotificationsModule } from '../../push-notification/push-notification.module';
+import { ServicesModule } from '../services/services.module';
 
 @Module({
   controllers: [ReviewsController],
@@ -15,6 +16,7 @@ import { NotificationsModule } from '../../push-notification/push-notification.m
   imports: [
     TypeOrmModule.forFeature([ReviewItemsEntity, ReviewsByServiceEntity, ServicesEntity, UsersEntity]),
     NotificationsModule,
+    ServicesModule,
   ],
 })
 export class ReviewsModule {} 
