@@ -12,6 +12,7 @@ import { PageDto } from 'src/dto/page.dto';
 
 import { UsersEntity } from 'src/entities/users.entity';
 import { PageOptionsDto } from 'src/dto/page-options.dto';
+import { UsersPageOptionsDto } from './dto/users-page-options.dto';
 import { SearchDto } from 'src/dto/search.dto';
 
 @ApiBearerAuth()
@@ -36,7 +37,7 @@ export class UsersController {
   @Get()
   @ApiPaginatedResponse(UsersEntity)
   @UseGuards(AuthGuard('jwt'))
-  findAll(@Query() pageOptionsDto: PageOptionsDto): Promise<PageDto<UsersEntity>> {
+  findAll(@Query() pageOptionsDto: UsersPageOptionsDto): Promise<PageDto<UsersEntity>> {
     return this.usersService.findAll(pageOptionsDto);
   }
 
