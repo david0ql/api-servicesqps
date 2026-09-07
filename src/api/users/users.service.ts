@@ -10,6 +10,7 @@ import { RolesEntity } from '../../entities/roles.entity';
 import { UsersEntity } from '../../entities/users.entity';
 import { SearchDto } from '../../dto/search.dto';
 import { PageOptionsDto } from '../../dto/page-options.dto';
+import { UsersPageOptionsDto } from './dto/users-page-options.dto';
 import { PageDto } from '../../dto/page.dto';
 import { PageMetaDto } from '../../dto/page-meta.dto';
 
@@ -62,11 +63,14 @@ export class UsersService {
     return new PageDto(items, pageMetaDto);
   }
 
-  async findAll(pageOptionsDto: PageOptionsDto): Promise<PageDto<UsersEntity>> {
+  async findAll(pageOptionsDto: UsersPageOptionsDto): Promise<PageDto<UsersEntity>> {
     const queryBuilder = this.usersRepository.createQueryBuilder('user');
     queryBuilder.innerJoinAndSelect('user.role', 'role');
     if (pageOptionsDto.activeOnly) {
       queryBuilder.andWhere('user.isActive = :isActive', { isActive: true });
+    }
+    if (pageOptionsDto.roleId) {
+      queryBuilder.andWhere('user.roleId = :roleId', { roleId: pageOptionsDto.roleId });
     }
     queryBuilder.orderBy('user.createdAt', pageOptionsDto.order);
     queryBuilder.skip(pageOptionsDto.skip);
