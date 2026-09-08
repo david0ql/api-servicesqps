@@ -24,7 +24,7 @@ export class AuthService {
       where: { email: username },
     });
 
-    if (!user) throw new NotFoundException('User not found');
+    if (!user || !user.isActive) throw new NotFoundException('User not found');
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) throw new NotFoundException('User not found');

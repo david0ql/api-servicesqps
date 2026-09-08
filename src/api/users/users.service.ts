@@ -162,6 +162,10 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    return this.usersRepository.remove(user);
+    // Los usuarios conservan relaciones con servicios, comunidades, reportes y
+    // mensajes. Borrarlos fisicamente puede romper ese historial; DELETE queda
+    // como operacion compatible, pero ahora solo los inactiva.
+    user.isActive = false;
+    return this.usersRepository.save(user);
   }
 }
