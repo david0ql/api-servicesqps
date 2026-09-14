@@ -24,8 +24,10 @@ import { diskStorage } from 'multer';
 import { extname, join, normalize, sep } from 'path';
 import { mkdirSync } from 'fs';
 import { createReadStream, existsSync } from 'fs';
+import { readFile, unlink, writeFile } from 'fs/promises';
 import { JwtService } from '@nestjs/jwt';
 import type { Response } from 'express';
+import convert from 'heic-convert';
 
 import { ServiceChatService } from './service-chat.service';
 import { ServiceChatGateway } from './service-chat.gateway';
@@ -109,7 +111,7 @@ export class ServiceChatController {
       );
     }
 
-    if (!/^(image|video)\//.test(file.mimetype)) {
+    if (!/^(image|video)\//.test(file.mimetype) && !this.isHeicFile(file)) {
       this.logger.warn(
         `Evidence upload tipo no permitido: mimetype=${file.mimetype} serviceId=${serviceId}`,
       );
@@ -118,8 +120,31 @@ export class ServiceChatController {
       );
     }
 
-    const attachmentType = file.mimetype.startsWith('image/') ? 'image' : 'video';
-    const relativePath = join('uploads', 'service-chat', serviceId, file.filename);
+    let attachmentMime = file.mimetype;
+    let attachmentName = file.originalname;
+    let attachmentFilename = file.filename;
+
+    if (this.isHeicFile(file)) {
+      try {
+        const jpegBuffer = await convert({
+          buffer: await readFile(file.path),
+          format: 'JPEG',
+          quality: 0.9,
+        });
+        attachmentFilename = file.filename.replace(/\.hei[cf]$/i, '.jpg');
+        attachmentName = file.originalname.replace(/\.hei[cf]$/i, '.jpg');
+        await writeFile(join(file.destination, attachmentFilename), jpegBuffer);
+        await unlink(file.path);
+        attachmentMime = 'image/jpeg';
+      } catch (error) {
+        await unlink(file.path).catch(() => undefined);
+        this.logger.error(`HEIC conversion failed for serviceId=${serviceId}`, error);
+        throw new BadRequestException('The HEIC image could not be processed.');
+      }
+    }
+
+    const attachmentType = attachmentMime.startsWith('image/') ? 'image' : 'video';
+    const relativePath = join('uploads', 'service-chat', serviceId, attachmentFilename);
     const normalizedPath = `/${relativePath.replace(/\\/g, '/')}`;
 
     const createdMessage = await this.serviceChatService.createMessage(
@@ -129,8 +154,8 @@ export class ServiceChatController {
       {
         path: normalizedPath,
         type: attachmentType,
-        mime: file.mimetype,
-        name: file.originalname,
+        mime: attachmentMime,
+        name: attachmentName,
       },
     );
 
@@ -192,6 +217,11 @@ export class ServiceChatController {
 
     const file = createReadStream(absolutePath);
     return new StreamableFile(file);
+  }
+
+  private isHeicFile(file: Express.Multer.File) {
+    return /^image\/hei[cf]$/i.test(file.mimetype)
+      || /\.hei[cf]$/i.test(file.originalname);
   }
 
   private getToken(req: any, tokenFromQuery?: string) {
