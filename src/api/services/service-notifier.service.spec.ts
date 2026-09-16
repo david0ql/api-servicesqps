@@ -145,6 +145,23 @@ describe('ServiceNotifierService', () => {
     expect(enviados.data.communityLongitude).toBe('-81.53');
   });
 
+  it('el recordatorio llega a la cleaner por push y SMS', async () => {
+    await notifier.notificarRecordatorioAsignacion(servicio, 1);
+    expect(enviados.tokensNotification.tokens).toEqual([CLEANER.token]);
+    expect(destinatarios()).toEqual(['Karla']);
+    expect(enviados.body).toContain('150 minutes');
+  });
+
+  it('el vencimiento llega solo por SMS al admin que asigno', async () => {
+    await notifier.notificarAsignacionVencida({
+      ...servicio,
+      assignedByUserId: ADMIN.id,
+    } as ServicesEntity);
+    expect(enviados.tokensNotification.tokens).toEqual([]);
+    expect(destinatarios()).toEqual(['Felix']);
+    expect(enviados.body).toContain('within 3 hours');
+  });
+
   it('una comunidad sin supervisor no rompe el envio', async () => {
     const sinSupervisor = await Test.createTestingModule({
       providers: [

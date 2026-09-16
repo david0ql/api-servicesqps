@@ -9,10 +9,11 @@ import { ExtrasByServiceEntity } from '../../entities/extras_by_service.entity';
 import { UsersEntity } from '../../entities/users.entity';
 import { NotificationsModule } from '../../push-notification/push-notification.module';
 import { CommunitiesEntity } from '../../entities/communities.entity';
+import { ServiceAssignmentReminderService } from './service-assignment-reminder.service';
 
 @Module({
   controllers: [ServicesController],
-  providers: [ServicesService, ServiceNotifierService],
+  providers: [ServicesService, ServiceNotifierService, ServiceAssignmentReminderService],
   exports: [ServicesService, ServiceNotifierService],
   imports: [
     TypeOrmModule.forFeature([ServicesEntity, ExtrasByServiceEntity, UsersEntity, CommunitiesEntity]),

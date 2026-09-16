@@ -41,7 +41,7 @@ export class RecurringServicesService {
     private readonly servicesService: ServicesService,
   ) {}
 
-  async create(createRecurringServiceDto: CreateRecurringServiceDto) {
+  async create(createRecurringServiceDto: CreateRecurringServiceDto, currentUser?: UsersEntity) {
     const normalizedDays = this.normalizeDays(createRecurringServiceDto.daysOfWeek);
     if (!normalizedDays.length) {
       throw new BadRequestException('At least one day of week is required.');
@@ -59,6 +59,9 @@ export class RecurringServicesService {
       extraIds: createRecurringServiceDto.extraIds ?? [],
       isActive: createRecurringServiceDto.isActive ?? true,
       startDate,
+      assignedByUserId: createRecurringServiceDto.userId && currentUser?.roleId === '1'
+        ? currentUser.id
+        : null,
     });
 
     await this.recurringServicesRepository.save(recurringService);
@@ -122,7 +125,7 @@ export class RecurringServicesService {
     return recurringService;
   }
 
-  async update(id: string, updateRecurringServiceDto: UpdateRecurringServiceDto) {
+  async update(id: string, updateRecurringServiceDto: UpdateRecurringServiceDto, currentUser?: UsersEntity) {
     if (updateRecurringServiceDto.userId) {
       await this.assertAssignableUser(updateRecurringServiceDto.userId);
     }
@@ -140,6 +143,13 @@ export class RecurringServicesService {
       ...updateRecurringServiceDto,
       ...(normalizedDays ? { daysOfWeek: normalizedDays } : {}),
       ...(updateRecurringServiceDto.extraIds ? { extraIds: updateRecurringServiceDto.extraIds } : {}),
+      ...(typeof updateRecurringServiceDto.userId !== 'undefined'
+        ? {
+            assignedByUserId: updateRecurringServiceDto.userId && currentUser?.roleId === '1'
+              ? currentUser.id
+              : null,
+          }
+        : {}),
     });
 
     if (!recurringService) {
@@ -226,7 +236,7 @@ export class RecurringServicesService {
         } as any;
 
         try {
-          await this.servicesService.create(payload);
+          await this.servicesService.create(payload, undefined, recurring.assignedByUserId);
         } catch (error) {
           this.logger.warn(`Failed to create recurring service ${recurring.id} for ${formattedDate}`);
         }
