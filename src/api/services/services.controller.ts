@@ -188,8 +188,8 @@ export class ServicesController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'))
-  create(@Body() createServiceDto: CreateServiceDto) {
-    return this.servicesService.create(createServiceDto);
+  create(@Body() createServiceDto: CreateServiceDto, @Request() req: any) {
+    return this.servicesService.create(createServiceDto, req.user.user);
   }
 
   @Patch(':id')

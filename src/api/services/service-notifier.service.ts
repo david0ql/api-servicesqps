@@ -111,6 +111,75 @@ export class ServiceNotifierService {
     });
   }
 
+  async notificarRecordatorioAsignacion(service: ServicesEntity, stage: number) {
+    if (!service.userId) {
+      return { done: true };
+    }
+
+    const cleaner = await this.usersRepository.findOne({
+      where: { id: service.userId, isActive: true },
+      select: ['id', 'name', 'token', 'phoneNumber', 'roleId'],
+    });
+    if (!cleaner) {
+      this.logger.warn(`Recordatorio servicio ${service.id}: cleaner no disponible.`);
+      return { done: true };
+    }
+
+    const minutosRestantes = stage === 1 ? 150 : stage === 2 ? 90 : 30;
+    const comunidad = service.community?.communityName ?? 'Unknown Community';
+    const fecha = moment.utc(service.date).format('MM/DD/YYYY');
+    const body = `Reminder: you have a service pending approval for ${fecha} in ${comunidad}. `
+      + `Please accept it in the App. It will be released in ${minutosRestantes} minutes.`;
+
+    return this.pushNotificationsService.sendNotification({
+      body,
+      title: 'Service Approval Reminder',
+      sound: 'default',
+      data: {
+        serviceId: service.id,
+        evento: 'recordatorio-asignacion',
+        reminderStage: stage,
+      },
+      tokensNotification: {
+        tokens: cleaner.token?.trim() ? [cleaner.token] : [],
+        users: cleaner.phoneNumber?.trim() ? [cleaner] : [],
+      },
+    });
+  }
+
+  async notificarAsignacionVencida(service: ServicesEntity) {
+    if (!service.assignedByUserId) {
+      this.logger.warn(`Vencimiento servicio ${service.id}: no tiene administrador asignador.`);
+      return { done: true };
+    }
+
+    const admin = await this.usersRepository.findOne({
+      where: { id: service.assignedByUserId, roleId: ROL_ADMIN, isActive: true },
+      select: ['id', 'name', 'token', 'phoneNumber', 'roleId'],
+    });
+    if (!admin?.phoneNumber?.trim()) {
+      this.logger.warn(`Vencimiento servicio ${service.id}: administrador sin teléfono activo.`);
+      return { done: true };
+    }
+
+    const comunidad = service.community?.communityName ?? 'Unknown Community';
+    const fecha = moment.utc(service.date).format('MM/DD/YYYY');
+    const unidad = service.unitNumber?.trim() || 'Unknown Apartment';
+    const cleaner = service.user?.name ?? 'The cleaner';
+    const body = `${cleaner} did not accept the service for ${fecha} in ${comunidad}, `
+      + `apartment ${unidad}, within 3 hours. The order was released for reassignment.`;
+
+    // Sin tokens: este evento debe llegar solamente por SMS al administrador
+    // que hizo la asignación.
+    return this.pushNotificationsService.sendNotification({
+      body,
+      title: 'Service Released',
+      sound: 'default',
+      data: { serviceId: service.id, evento: 'asignacion-vencida' },
+      tokensNotification: { tokens: [], users: [admin] },
+    });
+  }
+
   private async resolverDestinatarios(
     regla: { admin: boolean; cleaner: boolean; qa: boolean; supervisor: boolean },
     service: ServicesEntity,

@@ -32,6 +32,9 @@ export class RecurringServicesEntity {
   @Column("bigint", { name: "user_id", unsigned: true, nullable: true })
   userId: string | null;
 
+  @Column("bigint", { name: "assigned_by_user_id", unsigned: true, nullable: true })
+  assignedByUserId: string | null;
+
   @Column("varchar", { name: "unity_size", length: 191 })
   unitySize: string;
 

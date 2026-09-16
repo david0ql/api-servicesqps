@@ -515,7 +515,11 @@ export class ServicesService {
     };
   }
 
-  async create(createServiceDto: CreateServiceDto) {
+  async create(
+    createServiceDto: CreateServiceDto,
+    currentUser?: UsersEntity,
+    recurringAssignedByUserId?: string | null,
+  ) {
     const { extraId, ...createServiceDtoCopy } = createServiceDto;
 
     if (createServiceDto.userId) {
@@ -529,7 +533,18 @@ export class ServicesService {
     console.log('DTO without extraId:', JSON.stringify(createServiceDtoCopy, null, 2));
     console.log('===============================');
 
-    const service = this.servicesRepository.create(createServiceDtoCopy);
+    const isAssigned = Boolean(
+      createServiceDtoCopy.userId && createServiceDtoCopy.statusId === ServiceStatusId.Pending,
+    );
+    const service = this.servicesRepository.create({
+      ...createServiceDtoCopy,
+      assignedAt: isAssigned ? new Date() : null,
+      assignedByUserId: isAssigned
+        ? (recurringAssignedByUserId ?? (currentUser?.roleId === '1' ? currentUser.id : null))
+        : null,
+      assignmentReminderStage: 0,
+      assignmentExpiredAt: null,
+    });
     await this.servicesRepository.save(service);
 
     // Manejar extras
@@ -543,11 +558,14 @@ export class ServicesService {
 
     const fullService = await this.servicesRepository.findOne({
       where: { id: service.id },
-      relations: ['community', 'status', 'type'],
+      relations: ['community', 'status', 'type', 'user'],
     });
 
     // Obtener el usuario que está creando el servicio
     await this.notifier.notificar('creado', fullService);
+    if (isAssigned) {
+      await this.notifier.notificar('asignado', fullService);
+    }
 
     return {
       service: fullService,
@@ -558,7 +576,15 @@ export class ServicesService {
   async update(id: string, updateServiceDto: UpdateServiceDto, currentUser?: UsersEntity) {
     const existingService = await this.servicesRepository.findOne({
       where: { id },
-      select: ['id', 'userId', 'statusId'],
+      select: [
+        'id',
+        'userId',
+        'statusId',
+        'assignedAt',
+        'assignedByUserId',
+        'assignmentReminderStage',
+        'assignmentExpiredAt',
+      ],
     });
 
     if (!existingService) {
@@ -583,9 +609,41 @@ export class ServicesService {
       await this.assertAssignableUser(updateServiceDto.userId);
     }
 
+    const nextUserId = typeof updateServiceDto.userId !== 'undefined'
+      ? updateServiceDto.userId
+      : existingService.userId;
+    const nextStatusId = typeof updateServiceDto.statusId !== 'undefined'
+      ? updateServiceDto.statusId
+      : existingService.statusId;
+    const isNewAssignment = Boolean(
+      nextUserId
+      && nextStatusId === ServiceStatusId.Pending
+      && (
+        nextUserId !== existingService.userId
+        || existingService.statusId !== ServiceStatusId.Pending
+        || !existingService.assignedAt
+      ),
+    );
+    const isManualUnassignment = typeof updateServiceDto.userId !== 'undefined' && !updateServiceDto.userId;
+
     const service = await this.servicesRepository.preload({
       id,
       ...updateServiceDto,
+      ...(isNewAssignment
+        ? {
+            assignedAt: new Date(),
+            assignedByUserId: currentUser?.roleId === '1' ? currentUser.id : null,
+            assignmentReminderStage: 0,
+            assignmentExpiredAt: null,
+          }
+        : {}),
+      ...(isManualUnassignment
+        ? {
+            assignedAt: null,
+            assignedByUserId: null,
+            assignmentReminderStage: 0,
+          }
+        : {}),
     });
   
     if (!service) {
@@ -638,7 +696,10 @@ export class ServicesService {
       '6': 'finalizado',
     };
 
-    const evento = eventoPorEstado[fullService.status?.id];
+    const statusChanged = existingService.statusId !== fullService.statusId;
+    const evento = isNewAssignment
+      ? 'asignado'
+      : (statusChanged ? eventoPorEstado[fullService.status?.id] : undefined);
     if (evento) {
       await this.notifier.notificar(evento, fullService);
     }

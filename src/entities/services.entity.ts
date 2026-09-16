@@ -54,6 +54,18 @@ export class ServicesEntity {
   @Column("bigint", { name: "user_id", nullable: true, unsigned: true })
   userId: string | null;
 
+  @Column("timestamp", { name: "assigned_at", nullable: true })
+  assignedAt: Date | null;
+
+  @Column("bigint", { name: "assigned_by_user_id", nullable: true, unsigned: true })
+  assignedByUserId: string | null;
+
+  @Column("tinyint", { name: "assignment_reminder_stage", default: () => "0" })
+  assignmentReminderStage: number;
+
+  @Column("timestamp", { name: "assignment_expired_at", nullable: true })
+  assignmentExpiredAt: Date | null;
+
   @Column("bigint", { name: "recurring_service_id", nullable: true, unsigned: true })
   recurringServiceId: string | null;
 

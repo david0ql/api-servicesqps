@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -16,8 +16,8 @@ export class RecurringServicesController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'))
-  create(@Body() createRecurringServiceDto: CreateRecurringServiceDto) {
-    return this.recurringServicesService.create(createRecurringServiceDto);
+  create(@Body() createRecurringServiceDto: CreateRecurringServiceDto, @Request() req: any) {
+    return this.recurringServicesService.create(createRecurringServiceDto, req.user.user);
   }
 
   @Post('/search')
@@ -40,8 +40,8 @@ export class RecurringServicesController {
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'))
-  update(@Param('id') id: string, @Body() updateRecurringServiceDto: UpdateRecurringServiceDto) {
-    return this.recurringServicesService.update(id, updateRecurringServiceDto);
+  update(@Param('id') id: string, @Body() updateRecurringServiceDto: UpdateRecurringServiceDto, @Request() req: any) {
+    return this.recurringServicesService.update(id, updateRecurringServiceDto, req.user.user);
   }
 
   @Delete(':id')
