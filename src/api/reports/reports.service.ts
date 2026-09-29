@@ -865,7 +865,8 @@ export class ReportsService {
     );
   }
 
-  async costosSemana(startDate: string, endDate: string) {
+  async costosSemana(startDate: string, endDate: string, category?: string) {
+    const selectedCategory = COST_CATEGORIES.find(item => item.value === category);
     const startOfWeek = moment(startDate).format('YYYY-MM-DD');
     const endOfWeek = moment(endDate).format('YYYY-MM-DD');
 
@@ -882,7 +883,10 @@ export class ReportsService {
 
     costs.push(...recurringCosts, ...costsVariables);
 
-    const contractLaborTotal = await this.getCleanerPaymentsTotal(startOfWeek, endOfWeek);
+    const includesContractLabor = !selectedCategory || selectedCategory.value === CONTRACT_LABOR_CATEGORY;
+    const contractLaborTotal = includesContractLabor
+      ? await this.getCleanerPaymentsTotal(startOfWeek, endOfWeek)
+      : 0;
 
     if (contractLaborTotal > 0) {
       costs.push({
@@ -900,7 +904,7 @@ export class ReportsService {
         columns: [
           logo,
           {
-            text: `Costs ${moment.utc(startOfWeek).format('MM/DD/YYYY')} to ${moment.utc(endOfWeek).format('MM/DD/YYYY')}`,
+            text: `${selectedCategory ? `${selectedCategory.label} costs` : 'Costs'} ${moment.utc(startOfWeek).format('MM/DD/YYYY')} to ${moment.utc(endOfWeek).format('MM/DD/YYYY')}`,
             style: 'header',
           },
           {
@@ -912,7 +916,9 @@ export class ReportsService {
           }
         ],
       },
-      content: this.buildCostsByCategoryContent(costs),
+      content: this.buildCostsByCategoryContent(
+        selectedCategory ? costs.filter(cost => (cost.category ?? DEFAULT_COST_CATEGORY) === selectedCategory.value) : costs,
+      ),
       footer: {
         text: `© ${moment().format('YYYY')} Services QPS. Este documento es confidencial y no puede ser compartido.`,
         style: 'footer',
