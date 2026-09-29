@@ -98,9 +98,10 @@ export class ReportsController {
   async costosSemana(
     @Res() response: Response,
     @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string
+    @Query('endDate') endDate: string,
+    @Query('category') category?: string,
   ) {
-    const pdfDoc = await this.reportsService.costosSemana(startDate, endDate);
+    const pdfDoc = await this.reportsService.costosSemana(startDate, endDate, category);
     response.setHeader('Content-Type', 'application/pdf');
     pdfDoc.pipe(response);
     pdfDoc.end();
