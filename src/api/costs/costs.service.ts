@@ -35,6 +35,7 @@ export class CostsService {
       .where('costs.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
       .orWhere('costs.description LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
       .orWhere('costs.amount LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+      .orWhere('costs.category LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
 
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount();
 

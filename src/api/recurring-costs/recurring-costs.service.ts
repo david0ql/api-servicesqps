@@ -36,6 +36,7 @@ export class RecurringCostsService {
       .take(pageOptionsDto.take)
       .where('recurring_costs.description LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
       .orWhere('recurring_costs.amount LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+      .orWhere('recurring_costs.category LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
       .orWhere('recurring_costs.start_date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
       .orWhere('recurring_costs.end_date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` });
 

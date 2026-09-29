@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsBoolean, IsDateString, IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsDateString, IsIn, IsOptional, IsString } from "class-validator";
+import { COST_CATEGORY_VALUES, CostCategory, DEFAULT_COST_CATEGORY } from "src/constants/cost-categories";
 
 export class CreateRecurringCostDto {
   @ApiProperty({
@@ -40,4 +41,14 @@ export class CreateRecurringCostDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({
+    description: 'Categoria del costo (linea del Schedule C)',
+    enum: COST_CATEGORY_VALUES,
+    example: DEFAULT_COST_CATEGORY,
+    required: false,
+  })
+  @IsOptional()
+  @IsIn(COST_CATEGORY_VALUES)
+  category?: CostCategory;
 }
