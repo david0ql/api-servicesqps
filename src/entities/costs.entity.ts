@@ -1,4 +1,5 @@
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { CostCategory, DEFAULT_COST_CATEGORY } from "src/constants/cost-categories";
 
 @Entity("costs", { schema: "services_dbqa" })
 export class CostsEntity {
@@ -10,6 +11,9 @@ export class CostsEntity {
 
   @Column("varchar", { name: "description", length: 191 })
   description: string;
+
+  @Column("varchar", { name: "category", length: 40, default: DEFAULT_COST_CATEGORY })
+  category: CostCategory;
 
   @Column("decimal", { name: "amount", precision: 10, scale: 2 })
   amount: string;

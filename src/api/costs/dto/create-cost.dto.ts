@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsDateString, IsString } from "class-validator";
+import { IsDateString, IsIn, IsOptional, IsString } from "class-validator";
+import { COST_CATEGORY_VALUES, CostCategory, DEFAULT_COST_CATEGORY } from "src/constants/cost-categories";
 
 export class CreateCostDto {
     @ApiProperty({
@@ -22,4 +23,14 @@ export class CreateCostDto {
     })
     @IsString()
     amount: string;
+
+    @ApiProperty({
+        description: 'Categoria del costo (linea del Schedule C)',
+        enum: COST_CATEGORY_VALUES,
+        example: DEFAULT_COST_CATEGORY,
+        required: false,
+    })
+    @IsOptional()
+    @IsIn(COST_CATEGORY_VALUES)
+    category?: CostCategory;
 }

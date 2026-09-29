@@ -20,6 +20,13 @@ import envVars from '../../config/env';
 import { getTenantConfig } from '../../config/tenant-config';
 import { buildShareholderShares } from './shareholder-shares.util';
 import { calcularComisionesVendedores, totalComisiones } from './vendor-commissions.util';
+import { expandRecurringCosts } from './recurring-cost-occurrences.util';
+import {
+  COST_CATEGORIES,
+  CONTRACT_LABOR_CATEGORY,
+  CONTRACT_LABOR_DESCRIPTION,
+  DEFAULT_COST_CATEGORY,
+} from '../../constants/cost-categories';
 const PdfPrinter = require('pdfmake');
 
 const styles: StyleDictionary = {
@@ -232,16 +239,9 @@ export class ReportsService {
       },
     });
 
-    const recurringCosts = await this.getRecurringCosts(startOfWeek, endOfWeek);
+    const recurringCosts = await this.getRecurringCostOccurrences(startOfWeek, endOfWeek);
 
-    costs.push(
-      ...recurringCosts.map(cost => ({
-        date: moment.utc(endOfWeek).format('YYYY-MM-DD'),
-        description: cost.description,
-        amount: cost.amount,
-      })),
-      ...costsVariables,
-    );
+    costs.push(...recurringCosts, ...costsVariables);
 
     const totalCosts = costs.reduce((sum, cost) => sum + Number(cost.amount), 0);
     
@@ -878,16 +878,20 @@ export class ReportsService {
       },
     });
 
-    const recurringCosts = await this.getRecurringCosts(startOfWeek, endOfWeek);
+    const recurringCosts = await this.getRecurringCostOccurrences(startOfWeek, endOfWeek);
 
-    costs.push(
-      ...recurringCosts.map(cost => ({
-        date: moment.utc(endOfWeek).format('YYYY-MM-DD'),
-        description: cost.description,
-        amount: cost.amount,
-      })),
-      ...costsVariables,
-    );
+    costs.push(...recurringCosts, ...costsVariables);
+
+    const contractLaborTotal = await this.getCleanerPaymentsTotal(startOfWeek, endOfWeek);
+
+    if (contractLaborTotal > 0) {
+      costs.push({
+        date: endOfWeek,
+        description: CONTRACT_LABOR_DESCRIPTION,
+        amount: contractLaborTotal.toFixed(2),
+        category: CONTRACT_LABOR_CATEGORY,
+      });
+    }
 
     const docDefinition: TDocumentDefinitions = {
       styles,
@@ -896,7 +900,7 @@ export class ReportsService {
         columns: [
           logo,
           {
-            text: `Costs week ${moment.utc(startOfWeek).format('MM/DD/YYYY')} to ${moment.utc(endOfWeek).format('MM/DD/YYYY')}`,
+            text: `Costs ${moment.utc(startOfWeek).format('MM/DD/YYYY')} to ${moment.utc(endOfWeek).format('MM/DD/YYYY')}`,
             style: 'header',
           },
           {
@@ -908,24 +912,7 @@ export class ReportsService {
           }
         ],
       },
-      content: [
-        {
-          layout: 'customLayout01',
-          table: {
-            headerRows: 1,
-            widths: ['*', '*', '*'],
-            body: [
-              ['Date', 'Description', 'Amount'],
-              ...costs.map(cost => [
-                moment.utc(cost.date).format('MM/DD/YYYY'),
-                cost.description,
-                `$${Number(cost.amount).toFixed(2)}`,
-              ]),
-              ['', 'Total', `$${costs.reduce((sum, cost) => sum + Number(cost.amount), 0).toFixed(2)}`]
-            ]
-          }
-        }
-      ],
+      content: this.buildCostsByCategoryContent(costs),
       footer: {
         text: `© ${moment().format('YYYY')} Services QPS. Este documento es confidencial y no puede ser compartido.`,
         style: 'footer',
@@ -1181,6 +1168,117 @@ export class ReportsService {
       .andWhere('recurring_costs.start_date <= :endOfWeek', { endOfWeek })
       .andWhere('(recurring_costs.end_date IS NULL OR recurring_costs.end_date >= :startOfWeek)', { startOfWeek })
       .getMany();
+  }
+
+  private async getRecurringCostOccurrences(startDate: string, endDate: string) {
+    const recurringCosts = await this.getRecurringCosts(startDate, endDate);
+    return expandRecurringCosts(recurringCosts, startDate, endDate);
+  }
+
+  /** Total pagado a las cleaners en el rango, con la misma base del reporte de cleaners
+   *  (comision del tipo + comision de extras) contando solo servicios asignados. */
+  private async getCleanerPaymentsTotal(startDate: string, endDate: string) {
+    const queryBuilder = this.servicesRepository.createQueryBuilder('services');
+
+    queryBuilder
+      .leftJoinAndSelect('services.community', 'community')
+      .leftJoinAndSelect('services.type', 'type')
+      .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
+      .leftJoinAndSelect('extrasByServices.extra', 'extra')
+      .where('services.date BETWEEN :startDate AND :endDate', { startDate, endDate })
+      .andWhere('services.userId IS NOT NULL');
+
+    this.applyReportVisibilityFilter(queryBuilder);
+
+    const services = await this.filterQaHiddenServices(await queryBuilder.getMany());
+
+    return services.reduce((total, service) => {
+      const extrasCommission = service.extrasByServices?.reduce(
+        (sum, extraByService) => sum + Number(extraByService?.extra?.commission ?? 0),
+        0,
+      ) ?? 0;
+      return total + Number(service.type?.commission ?? 0) + extrasCommission;
+    }, 0);
+  }
+
+  private buildCostsByCategoryContent(
+    costs: { date: string; description: string; amount: string; category?: string }[],
+  ): Content[] {
+    const formatCurrency = (value: number) =>
+      new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+
+    const knownCategories = new Set<string>(COST_CATEGORIES.map(category => category.value));
+    const summaryRows: any[][] = [];
+    const detailContent: Content[] = [];
+    let grandTotal = 0;
+
+    COST_CATEGORIES.forEach(category => {
+      const categoryCosts = costs
+        .filter(cost => {
+          const costCategory = cost.category && knownCategories.has(cost.category) ? cost.category : DEFAULT_COST_CATEGORY;
+          return costCategory === category.value;
+        })
+        .sort((a, b) => moment.utc(a.date).valueOf() - moment.utc(b.date).valueOf());
+
+      if (!categoryCosts.length) return;
+
+      const subtotal = categoryCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
+      grandTotal += subtotal;
+      summaryRows.push([category.line, category.label, formatCurrency(subtotal)]);
+
+      detailContent.push({
+        layout: 'customLayout01',
+        margin: [0, 0, 0, 15],
+        table: {
+          headerRows: 1,
+          widths: [80, '*', 90],
+          body: [
+            [
+              { text: `Line ${category.line}`, fillColor: '#7b90be', color: '#ffffff', bold: true },
+              { text: category.label, fillColor: '#7b90be', color: '#ffffff', bold: true },
+              { text: 'Amount', fillColor: '#7b90be', color: '#ffffff', bold: true },
+            ],
+            ...categoryCosts.map(cost => [
+              moment.utc(cost.date).format('MM/DD/YYYY'),
+              cost.description,
+              formatCurrency(Number(cost.amount)),
+            ]),
+            [
+              { text: '', fillColor: '#e6e6e6', color: '#000000' },
+              { text: `Total ${category.label}`, bold: true, fillColor: '#e6e6e6', color: '#000000' },
+              { text: formatCurrency(subtotal), bold: true, fillColor: '#e6e6e6', color: '#000000' },
+            ],
+          ],
+        },
+      });
+    });
+
+    if (!summaryRows.length) {
+      return [{ text: 'No costs registered in this date range.', alignment: 'center' }];
+    }
+
+    return [
+      { text: 'Summary by category', bold: true, fontSize: 12, margin: [0, 0, 0, 8] },
+      {
+        layout: 'customLayout01',
+        margin: [0, 0, 0, 20],
+        table: {
+          headerRows: 1,
+          widths: [80, '*', 90],
+          body: [
+            ['Line', 'Category', 'Total'],
+            ...summaryRows,
+            [
+              { text: '', fillColor: '#e6e6e6', color: '#000000' },
+              { text: 'Total', bold: true, fillColor: '#e6e6e6', color: '#000000' },
+              { text: formatCurrency(grandTotal), bold: true, fillColor: '#e6e6e6', color: '#000000' },
+            ],
+          ],
+        },
+      },
+      { text: 'Detail by category', bold: true, fontSize: 12, margin: [0, 0, 0, 8] },
+      ...detailContent,
+    ];
   }
 
   private buildCleanerReportDocDefinition(
