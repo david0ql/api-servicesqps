@@ -255,7 +255,7 @@ export class ReportsService {
       : buildShareholderShares(endOfWeek, netProfit);
 
     // Comisiones de los vendedores asociados (brokers). Se calculan sobre lo
-    // que cada complex deja despues de pagarle a las cleaners, y se descuentan
+    // facturado a cada complex (precio de servicios + extras), y se descuentan
     // del neto a cobrar del socio como un pago mas de la semana.
     const comisionesVendedores = calcularComisionesVendedores(services);
     const totalVendedores = totalComisiones(comisionesVendedores);
@@ -381,7 +381,7 @@ export class ReportsService {
 
     // Tabla nueva: desglose de lo que gana cada vendedor asociado, por complex.
     const vendedoresTableBody: any[] = [
-      ['Vendedor', 'Complex', 'Base (neto del complex)', '%', 'Comisión'].map(header => ({
+      ['Vendedor', 'Complex', 'Base (servicios + extras)', '%', 'Comisión'].map(header => ({
         text: header, fillColor: '#7b90be', color: '#ffffff',
       })),
     ];

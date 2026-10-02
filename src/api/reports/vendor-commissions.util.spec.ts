@@ -1,6 +1,6 @@
 import {
   calcularComisionesVendedores,
-  gananciaDelServicio,
+  facturadoDelServicio,
   totalComisiones,
   TASA_COMISION_POR_DEFECTO,
 } from './vendor-commissions.util';
@@ -35,29 +35,37 @@ const servicio = (opciones: {
   },
 } as unknown as ServicesEntity);
 
-describe('gananciaDelServicio', () => {
-  it('resta la comision de la cleaner al precio cobrado', () => {
-    expect(gananciaDelServicio(servicio({ precio: 155, comision: 90 }))).toBe(65);
+describe('facturadoDelServicio', () => {
+  it('no resta la comision de la cleaner al precio cobrado', () => {
+    expect(facturadoDelServicio(servicio({ precio: 155, comision: 90 }))).toBe(155);
   });
 
-  it('incluye los extras en los dos lados', () => {
+  it('suma el precio de los extras', () => {
     const s = servicio({ precio: 155, comision: 90, extras: [{ precio: 40, comision: 20 }] });
-    expect(gananciaDelServicio(s)).toBe(85); // (155+40) - (90+20)
+    expect(facturadoDelServicio(s)).toBe(195); // 155 + 40
   });
 
   it('no explota con datos faltantes', () => {
-    expect(gananciaDelServicio({} as ServicesEntity)).toBe(0);
+    expect(facturadoDelServicio({} as ServicesEntity)).toBe(0);
   });
 });
 
 describe('calcularComisionesVendedores', () => {
-  it('aplica el 10% por defecto sobre la ganancia, no sobre la facturacion', () => {
-    // Caso real de Alton Serenoa: facturado 2035, comisiones 965 -> base 1070
+  it('aplica el 10% por defecto sobre la facturacion, sin descontar a la cleaner', () => {
+    // Caso real de Alton Serenoa: facturado 2035, comisiones 965
     const servicios = [servicio({ precio: 2035, comision: 965 })];
     const [vendedor] = calcularComisionesVendedores(servicios);
 
-    expect(vendedor.base).toBe(1070);
-    expect(vendedor.comision).toBe(107); // y NO 203.50, que seria sobre la facturacion
+    expect(vendedor.base).toBe(2035);
+    expect(vendedor.comision).toBe(203.5); // y NO 107, que seria sobre el neto despues de cleaners
+  });
+
+  it('incluye el precio de los extras en la base', () => {
+    const servicios = [servicio({ precio: 155, comision: 90, extras: [{ precio: 40, comision: 20 }] })];
+    const [vendedor] = calcularComisionesVendedores(servicios);
+
+    expect(vendedor.base).toBe(195);
+    expect(vendedor.comision).toBe(19.5);
   });
 
   it('ignora los complex sin vendedor asignado', () => {
@@ -67,7 +75,7 @@ describe('calcularComisionesVendedores', () => {
     ];
     const resultado = calcularComisionesVendedores(servicios);
     expect(resultado).toHaveLength(1);
-    expect(resultado[0].base).toBe(60);
+    expect(resultado[0].base).toBe(100);
   });
 
   it('no cobra por servicios anteriores a la fecha en que se asigno el vendedor', () => {
@@ -76,12 +84,12 @@ describe('calcularComisionesVendedores', () => {
       servicio({ fecha: '2026-09-05', precio: 100, comision: 40, comunidad: { desde: '2026-09-01' } }),
     ];
     const [vendedor] = calcularComisionesVendedores(servicios);
-    expect(vendedor.base).toBe(60); // solo el de septiembre
+    expect(vendedor.base).toBe(100); // solo el de septiembre
   });
 
   it('cuenta el servicio del mismo dia en que se asigno', () => {
     const servicios = [servicio({ fecha: '2026-09-01', precio: 100, comision: 40, comunidad: { desde: '2026-09-01' } })];
-    expect(calcularComisionesVendedores(servicios)[0].base).toBe(60);
+    expect(calcularComisionesVendedores(servicios)[0].base).toBe(100);
   });
 
   it('respeta una tasa distinta pactada con un vendedor', () => {
@@ -99,8 +107,8 @@ describe('calcularComisionesVendedores', () => {
 
     expect(resultado).toHaveLength(2);
     const diego = resultado.find((v) => v.vendorName === 'Diego Pinto')!;
-    expect(diego.base).toBe(300);          // 100 + 200
-    expect(diego.comision).toBe(30);
+    expect(diego.base).toBe(500);          // 200 + 300
+    expect(diego.comision).toBe(50);
     expect(diego.complexes.map((c) => c.communityName).sort()).toEqual(['Kestra', 'Urbana']);
   });
 

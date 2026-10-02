@@ -31,7 +31,7 @@ export class CommunitiesEntity {
   isActive: boolean;
 
   // Vendedor asociado que consiguio el complex. Cobra una comision sobre lo
-  // que ese complex deja despues de pagarle a las cleaners.
+  // facturado a ese complex (precio de servicios + extras).
   @Column("bigint", { name: "vendor_user_id", unsigned: true, nullable: true })
   vendorUserId: string | null;
 

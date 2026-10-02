@@ -5,16 +5,14 @@ import { ServicesEntity } from '../../entities/services.entity';
 /**
  * Comisiones de los vendedores asociados (brokers).
  *
- * Base de calculo, confirmada por Felix el 05/09/2026:
- *   "ganan sobre el total de ganancia de los socios, sin incluir gastos,
- *    ganan sobre el neto ganado"
+ * Base de calculo, corregida por Felix el 02/10/2026:
+ *   "debe ser tomado el 10% del service price + 10% del extra price"
  *
- *   base = precio de servicios + precio de extras - comisiones de cleaners
+ *   base = precio de servicios + precio de extras
  *
- * Es decir, sobre lo que el complex deja DESPUES de pagarle a la cleaner y
- * ANTES de los gastos generales de la semana. En el primer mensaje se habia
- * dicho "antes de las deducciones de las cleaners", que daba casi el doble;
- * quedo descartado.
+ * Es decir, sobre lo FACTURADO al complex, sin descontar lo que se le paga a
+ * la cleaner ni los gastos generales. El 05/09/2026 se habia confirmado lo
+ * contrario (sobre el neto despues de cleaners); quedo descartado.
  *
  * La comision solo cuenta desde que al complex se le asigno el vendedor
  * (vendorAssignedAt): los reportes de semanas anteriores salen como siempre.
@@ -43,16 +41,14 @@ const numero = (valor: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/** Lo que deja un servicio despues de pagarle a la cleaner. */
-export function gananciaDelServicio(service: ServicesEntity): number {
+/** Lo facturado por un servicio: precio del servicio + precio de sus extras. */
+export function facturadoDelServicio(service: ServicesEntity): number {
   const precioServicio = numero(service.type?.price);
-  const comisionServicio = numero(service.type?.commission);
 
   const extras = service.extrasByServices ?? [];
   const precioExtras = extras.reduce((suma, e) => suma + numero(e?.extra?.itemPrice), 0);
-  const comisionExtras = extras.reduce((suma, e) => suma + numero(e?.extra?.commission), 0);
 
-  return (precioServicio + precioExtras) - (comisionServicio + comisionExtras);
+  return precioServicio + precioExtras;
 }
 
 /**
@@ -81,7 +77,7 @@ export function calcularComisionesVendedores(services: ServicesEntity[]): Comisi
       ? numero(community.vendorCommissionRate)
       : TASA_COMISION_POR_DEFECTO;
 
-    const ganancia = gananciaDelServicio(service);
+    const facturado = facturadoDelServicio(service);
 
     if (!porVendedor.has(vendorId)) {
       porVendedor.set(vendorId, {
@@ -106,8 +102,8 @@ export function calcularComisionesVendedores(services: ServicesEntity[]): Comisi
       vendedor.complexes.push(complex);
     }
 
-    complex.base += ganancia;
-    vendedor.base += ganancia;
+    complex.base += facturado;
+    vendedor.base += facturado;
   }
 
   // El redondeo se hace UNA sola vez, sobre el total de cada complex, para que
