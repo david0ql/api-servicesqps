@@ -36,6 +36,10 @@ export class CalendarService {
     return this.findByDateRange(startDate, endDate, currentUser);
   }
 
+  async findByRange(startDate: string, endDate: string, currentUser?: UsersEntity) {
+    return this.findByDateRange(startDate, endDate, currentUser);
+  }
+
   private getDateRangeByType(type: string): { startDate: string; endDate: string } | null {
     const today = moment().format('YYYY-MM-DD');
 
