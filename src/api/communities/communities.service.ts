@@ -1,14 +1,14 @@
 import { InjectRepository } from '@nestjs/typeorm';
 import { Injectable, NotFoundException } from '@nestjs/common';
 
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import moment from 'moment-timezone';
 
 import { CreateCommunityDto } from './dto/create-community.dto';
 import { UpdateCommunityDto } from './dto/update-community.dto';
 import { CommunitiesEntity } from '../../entities/communities.entity';
 import { SearchDto } from '../../dto/search.dto';
-import { PageOptionsDto } from '../../dto/page-options.dto';
+import { CommunitiesPageOptionsDto } from './dto/communities-page-options.dto';
 import { PageDto } from '../../dto/page.dto';
 import { PageMetaDto } from '../../dto/page-meta.dto';
 import { normalizeCommunityContacts } from './community-contacts.util';
@@ -66,7 +66,7 @@ export class CommunitiesService {
     return community;
   }
 
-  async searchByWord(searchDto: SearchDto, pageOptionsDto: PageOptionsDto): Promise<PageDto<CommunitiesEntity>> {
+  async searchByWord(searchDto: SearchDto, pageOptionsDto: CommunitiesPageOptionsDto): Promise<PageDto<CommunitiesEntity>> {
     const searchedItemsByWord = this.communitiesRepository.createQueryBuilder('communities')
       .leftJoinAndSelect('communities.supervisorUser', 'supervisorUser')
       .leftJoinAndSelect('communities.managerUser', 'managerUser')
@@ -115,20 +115,20 @@ export class CommunitiesService {
         'managerRole.id',
         'managerRole.name',
       ])
-      .where('communities.communityName like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('supervisorUser.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('supervisorUser.email like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('supervisorUser.phoneNumber like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('managerUser.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('managerUser.email like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('managerUser.phoneNumber like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('company.companyName like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('supervisorRole.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('managerRole.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      .where(new Brackets((qb) => {
+        qb.where('communities.communityName like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('supervisorUser.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('supervisorUser.email like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('supervisorUser.phoneNumber like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('managerUser.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('managerUser.email like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('managerUser.phoneNumber like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('company.companyName like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('supervisorRole.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('managerRole.name like :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      }));
 
-    if (!pageOptionsDto.includeInactive) {
-      searchedItemsByWord.andWhere('communities.isActive = :isActive', { isActive: true });
-    }
+    this.applyStatusFilter(searchedItemsByWord, pageOptionsDto);
 
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount();
 
@@ -143,7 +143,7 @@ export class CommunitiesService {
    * respeta el filtro sin publicar una version nueva en las tiendas.
    * El listado de administracion pide includeInactive=true para verlas todas.
    */
-  async findAll(pageOptionsDto: PageOptionsDto): Promise<PageDto<CommunitiesEntity>> {
+  async findAll(pageOptionsDto: CommunitiesPageOptionsDto): Promise<PageDto<CommunitiesEntity>> {
     const queryBuilder = this.communitiesRepository.createQueryBuilder('communities')
       .leftJoinAndSelect('communities.supervisorUser', 'supervisorUser')
       .leftJoinAndSelect('communities.managerUser', 'managerUser')
@@ -193,9 +193,7 @@ export class CommunitiesService {
         'managerRole.name',
       ]);
 
-    if (!pageOptionsDto.includeInactive) {
-      queryBuilder.andWhere('communities.isActive = :isActive', { isActive: true });
-    }
+    this.applyStatusFilter(queryBuilder, pageOptionsDto);
 
     const [items, totalCount] = await queryBuilder.getManyAndCount();
 
@@ -355,5 +353,19 @@ export class CommunitiesService {
     }
 
     return this.communitiesRepository.remove(community);
+  }
+
+  /**
+   * status=active / inactive filtra por estado. Sin status se mantiene el
+   * comportamiento anterior: solo activas, salvo includeInactive=true (todas).
+   */
+  private applyStatusFilter(qb: any, pageOptionsDto: CommunitiesPageOptionsDto) {
+    if (pageOptionsDto.status === 'active') {
+      qb.andWhere('communities.isActive = :isActive', { isActive: true });
+    } else if (pageOptionsDto.status === 'inactive') {
+      qb.andWhere('communities.isActive = :isActive', { isActive: false });
+    } else if (!pageOptionsDto.includeInactive) {
+      qb.andWhere('communities.isActive = :isActive', { isActive: true });
+    }
   }
 }

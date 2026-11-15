@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
 import { ApiPaginatedResponse } from 'src/decorators/api-paginated-response.decorator';
-import { PageOptionsDto } from 'src/dto/page-options.dto';
+import { StatusPageOptionsDto } from '../../dto/status-page-options.dto';
 import { PageDto } from 'src/dto/page.dto';
 import { SearchDto } from 'src/dto/search.dto';
 
@@ -31,7 +31,7 @@ export class RecurringCostsController {
   @ApiPaginatedResponse(RecurringCostsEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWord(
-    @Query() pageOptionsDto: PageOptionsDto,
+    @Query() pageOptionsDto: StatusPageOptionsDto,
     @Body() searchDto: SearchDto,
   ): Promise<PageDto<RecurringCostsEntity>> {
     return this.recurringCostsService.searchByWord(searchDto, pageOptionsDto);
@@ -40,7 +40,7 @@ export class RecurringCostsController {
   @Get()
   @ApiPaginatedResponse(RecurringCostsEntity)
   @UseGuards(AuthGuard('jwt'))
-  findAll(@Query() pageOptionsDto: PageOptionsDto): Promise<PageDto<RecurringCostsEntity>> {
+  findAll(@Query() pageOptionsDto: StatusPageOptionsDto): Promise<PageDto<RecurringCostsEntity>> {
     return this.recurringCostsService.findAll(pageOptionsDto);
   }
 
