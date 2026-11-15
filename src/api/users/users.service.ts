@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 
 import { CreateUserDto } from './dto/create-user.dto';
@@ -9,7 +9,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { RolesEntity } from '../../entities/roles.entity';
 import { UsersEntity } from '../../entities/users.entity';
 import { SearchDto } from '../../dto/search.dto';
-import { PageOptionsDto } from '../../dto/page-options.dto';
 import { UsersPageOptionsDto } from './dto/users-page-options.dto';
 import { PageDto } from '../../dto/page.dto';
 import { PageMetaDto } from '../../dto/page-meta.dto';
@@ -34,7 +33,13 @@ export class UsersService {
     return user;
   }
 
-  async searchByWord(searchDto: SearchDto, pageOptionsDto: PageOptionsDto): Promise<PageDto<UsersEntity>> {
+  /**
+   * Busqueda libre combinable con el filtro de rol de la pestana Users.
+   * Los LIKE van entre parentesis (Brackets): sin ellos `A OR B OR C AND rol`
+   * se evalua como `A OR B OR (C AND rol)` y el filtro de rol no se aplicaria.
+   */
+  async searchByWord(searchDto: SearchDto, pageOptionsDto: UsersPageOptionsDto): Promise<PageDto<UsersEntity>> {
+    const searchWord = `%${searchDto.searchWord}%`;
     const searchedItemsByWord = this.usersRepository.createQueryBuilder('users')
       .innerJoinAndSelect('users.role', 'role')
       .orderBy('users.createdAt', pageOptionsDto.order)
@@ -51,10 +56,16 @@ export class UsersService {
         'role.id',
         'role.name',
       ])
-      .where('users.name LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('users.email LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('users.phoneNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('role.name LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+      .where(new Brackets((qb) => {
+        qb.where('users.name LIKE :searchWord', { searchWord })
+          .orWhere('users.email LIKE :searchWord', { searchWord })
+          .orWhere('users.phoneNumber LIKE :searchWord', { searchWord })
+          .orWhere('role.name LIKE :searchWord', { searchWord });
+      }));
+
+    if (pageOptionsDto.roleId) {
+      searchedItemsByWord.andWhere('users.roleId = :roleId', { roleId: pageOptionsDto.roleId });
+    }
 
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount();
 

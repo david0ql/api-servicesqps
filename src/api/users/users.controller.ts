@@ -11,7 +11,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { PageDto } from 'src/dto/page.dto';
 
 import { UsersEntity } from 'src/entities/users.entity';
-import { PageOptionsDto } from 'src/dto/page-options.dto';
 import { UsersPageOptionsDto } from './dto/users-page-options.dto';
 import { SearchDto } from 'src/dto/search.dto';
 
@@ -30,7 +29,7 @@ export class UsersController {
   @Post('/search')
   @ApiPaginatedResponse(UsersEntity)
   @UseGuards(AuthGuard('jwt'))
-  searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<UsersEntity>> {
+  searchByWord(@Query() pageOptionsDto: UsersPageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<UsersEntity>> {
     return this.usersService.searchByWord(searchDto, pageOptionsDto);
   }
 
