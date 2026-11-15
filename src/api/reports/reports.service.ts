@@ -252,8 +252,9 @@ export class ReportsService {
       ? (tenantConfig.reports.fixedShareholders ?? []).map((shareholder) => ({
           ...shareholder,
           amount: netProfit * shareholder.percentage,
+          costsAmount: totalCosts * shareholder.percentage,
         }))
-      : buildShareholderShares(endOfWeek, netProfit);
+      : buildShareholderShares(endOfWeek, netProfit, totalCosts);
 
     // Comisiones de los vendedores asociados (brokers). Se calculan sobre lo
     // facturado a cada complex (precio de servicios + extras), y se descuentan
@@ -364,20 +365,24 @@ export class ReportsService {
       ];
       comisionesTableWidths = ['*', 'auto', 'auto', 'auto', 'auto'];
     } else {
+      // Cada accionista asume su porcentaje tanto de la ganancia neta como de
+      // los gastos de la semana (p. ej. Diego 20% desde DIEGO_SHAREHOLDER_START_DATE).
       comisionesTableBody = [
-        ['Accionista', 'Porcentaje', 'Ganancia Neta'],
+        ['Accionista', 'Porcentaje', 'Gastos asumidos', 'Ganancia Neta'],
         ...shareholderShares.map((share) => ([
           share.name,
           `${Math.round(share.percentage * 100)}%`,
+          formatCurrency(share.costsAmount),
           formatCurrency(share.amount),
         ])),
         [
           'Total',
           `${Math.round(shareholderShares.reduce((sum, share) => sum + share.percentage, 0) * 100)}%`,
+          formatCurrency(shareholderShares.reduce((sum, share) => sum + share.costsAmount, 0)),
           formatCurrency(shareholderShares.reduce((sum, share) => sum + share.amount, 0)),
         ],
       ];
-      comisionesTableWidths = ['*', 'auto', 'auto'];
+      comisionesTableWidths = ['*', 'auto', 'auto', 'auto'];
     }
 
     // Tabla nueva: desglose de lo que gana cada vendedor asociado, por complex.
