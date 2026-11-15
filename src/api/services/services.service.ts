@@ -20,6 +20,9 @@ import { ServiceStatusId } from '../../constants/service-status.enum';
 import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 import { EventoServicio, ServiceNotifierService } from './service-notifier.service';
+import { aplicaBloqueoDeHora, edicionInvolucraHora, HORA_BLOQUEADA, rolSujetoABloqueoDeHora } from './schedule-lock.util';
+import { CommunityBlackoutsService } from '../community-blackouts/community-blackouts.service';
+import { isAdminLike } from '../../constants/roles';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -51,6 +54,7 @@ export class ServicesService {
     private readonly communitiesRepository: Repository<CommunitiesEntity>,
     private readonly pushNotificationsService: PushNotificationsService,
     private readonly notifier: ServiceNotifierService,
+    private readonly blackouts: CommunityBlackoutsService,
   ) { }
 
   private addActiveRecurringFilter(queryBuilder: any) {
@@ -72,12 +76,14 @@ export class ServicesService {
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
-      .where('services.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.comment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.userComment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.unitySize LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+      .andWhere(new Brackets((qb) => {
+        qb.where('services.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.comment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.userComment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.unitySize LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      }))
 
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount()
 
@@ -114,7 +120,7 @@ export class ServicesService {
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
-      .where('services.communityId IN (:...communityIds)', { communityIds })
+      .andWhere('services.communityId IN (:...communityIds)', { communityIds })
       .andWhere(new Brackets((qb) => {
         qb.where('services.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
           .orWhere('services.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
@@ -193,7 +199,7 @@ export class ServicesService {
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
-      .where('services.statusId = :statusID', { statusID })
+      .andWhere('services.statusId = :statusID', { statusID })
 
     const [items, totalCount] = await queryBuilder.getManyAndCount()
 
@@ -217,7 +223,7 @@ export class ServicesService {
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
-      .where('services.statusId = :statusID', { statusID })
+      .andWhere('services.statusId = :statusID', { statusID })
       .andWhere('services.userId = :userID', { userID })
 
     const [items, totalCount] = await queryBuilder.getManyAndCount()
@@ -255,7 +261,7 @@ export class ServicesService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra');
     this.addActiveRecurringFilter(queryBuilder);
     queryBuilder
-      .where('services.userId = :userId', { userId })
+      .andWhere('services.userId = :userId', { userId })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -280,7 +286,7 @@ export class ServicesService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra');
     this.addActiveRecurringFilter(queryBuilder);
     queryBuilder
-      .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
+      .andWhere('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take);
@@ -332,7 +338,7 @@ export class ServicesService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra');
     this.addActiveRecurringFilter(queryBuilder);
     queryBuilder
-      .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
+      .andWhere('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
       .andWhere('services.statusId = :statusID', { statusID })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
@@ -356,7 +362,7 @@ export class ServicesService {
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
-      .where('services.userId = :userId', { userId })
+      .andWhere('services.userId = :userId', { userId })
       .andWhere('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek })
 
     return queryBuilder.getMany();
@@ -375,7 +381,7 @@ export class ServicesService {
   async trackServiceStart(id: string, payload: TrackServiceLocationDto, currentUser: UsersEntity) {
     const service = await this.servicesRepository.findOne({
       where: { id },
-      select: ['id', 'userId', 'statusId', 'date', 'startedAt', 'finishedAt'],
+      select: ['id', 'userId', 'statusId', 'date', 'startedAt', 'finishedAt', 'refreshCount'],
     });
 
     if (!service) {
@@ -383,7 +389,7 @@ export class ServicesService {
     }
 
     this.assertTrackingPermissions(service, currentUser);
-    this.assertServiceDateForStart(service.date);
+    this.assertServiceDateForStart(service.date, Number(service.refreshCount) > 0);
 
     if (service.startedAt) {
       throw new BadRequestException('Service start has already been marked.');
@@ -533,6 +539,14 @@ export class ServicesService {
     console.log('DTO without extraId:', JSON.stringify(createServiceDtoCopy, null, 2));
     console.log('===============================');
 
+    if (await this.debeBloquearHora(createServiceDtoCopy.communityId, currentUser)) {
+      createServiceDtoCopy.schedule = HORA_BLOQUEADA;
+    }
+
+    // Dias/horarios fuera de servicio de la comunidad (festividades): 400.
+    // Se valida con la hora efectiva (ya forzada a 00:00 si aplica el bloqueo).
+    await this.blackouts.assertServiceAllowed({ ...createServiceDto, schedule: createServiceDtoCopy.schedule });
+
     const isAssigned = Boolean(
       createServiceDtoCopy.userId && createServiceDtoCopy.statusId === ServiceStatusId.Pending,
     );
@@ -540,7 +554,7 @@ export class ServicesService {
       ...createServiceDtoCopy,
       assignedAt: isAssigned ? new Date() : null,
       assignedByUserId: isAssigned
-        ? (recurringAssignedByUserId ?? (currentUser?.roleId === '1' ? currentUser.id : null))
+        ? (recurringAssignedByUserId ?? (isAdminLike(currentUser?.roleId) ? currentUser.id : null))
         : null,
       assignmentReminderStage: 0,
       assignmentExpiredAt: null,
@@ -584,6 +598,7 @@ export class ServicesService {
         'assignedByUserId',
         'assignmentReminderStage',
         'assignmentExpiredAt',
+        'communityId',
       ],
     });
 
@@ -626,13 +641,25 @@ export class ServicesService {
     );
     const isManualUnassignment = typeof updateServiceDto.userId !== 'undefined' && !updateServiceDto.userId;
 
+    const bloquearHora = edicionInvolucraHora(updateServiceDto) && await this.debeBloquearHora(
+      updateServiceDto.communityId ?? existingService.communityId,
+      currentUser,
+    );
+
+    // Solo valida si se mueve el servicio (fecha, hora o comunidad), con la hora efectiva.
+    await this.blackouts.assertServiceUpdateAllowed(
+      id,
+      bloquearHora ? { ...updateServiceDto, schedule: HORA_BLOQUEADA } : updateServiceDto,
+    );
+
     const service = await this.servicesRepository.preload({
       id,
       ...updateServiceDto,
+      ...(bloquearHora ? { schedule: HORA_BLOQUEADA } : {}),
       ...(isNewAssignment
         ? {
             assignedAt: new Date(),
-            assignedByUserId: currentUser?.roleId === '1' ? currentUser.id : null,
+            assignedByUserId: isAdminLike(currentUser?.roleId) ? currentUser.id : null,
             assignmentReminderStage: 0,
             assignmentExpiredAt: null,
           }
@@ -787,6 +814,18 @@ export class ServicesService {
     }
   }
 
+  // Ver schedule-lock.util.ts. Solo consulta la comunidad si el rol aplica.
+  private async debeBloquearHora(communityId?: string | null, currentUser?: UsersEntity): Promise<boolean> {
+    if (!communityId || !rolSujetoABloqueoDeHora(currentUser?.roleId)) {
+      return false;
+    }
+    const community = await this.communitiesRepository.findOne({
+      where: { id: communityId },
+      select: ['id', 'lockScheduleForStaff'],
+    });
+    return aplicaBloqueoDeHora(currentUser.roleId, community?.lockScheduleForStaff);
+  }
+
   private createCommunityDateRangeQuery(communityId: string, startDate: string, endDate: string) {
     return this.servicesRepository
       .createQueryBuilder('services')
@@ -813,9 +852,21 @@ export class ServicesService {
     }
   }
 
-  private assertServiceDateForStart(serviceDate: string) {
+  /**
+   * Un servicio normal solo se inicia el dia programado. Un refresh (la QA lo
+   * devolvio) puede llegar el mismo dia o despues, asi que se permite iniciarlo
+   * desde la fecha programada en adelante, nunca antes.
+   */
+  private assertServiceDateForStart(serviceDate: string, isRefresh = false) {
     const today = moment().format('YYYY-MM-DD');
     const scheduledDate = moment(serviceDate).format('YYYY-MM-DD');
+
+    if (isRefresh) {
+      if (today < scheduledDate) {
+        throw new BadRequestException('Service can only be started on or after its scheduled date.');
+      }
+      return;
+    }
 
     if (today !== scheduledDate) {
       throw new BadRequestException('Service can only be started on its scheduled date.');
@@ -937,7 +988,7 @@ export class ServicesService {
     body: { kdsDay: string | null; kdsOrder?: number | null; kdsWeekOf?: string | null },
     currentUser?: UsersEntity,
   ) {
-    const isAdmin = currentUser?.roleId === '1';
+    const isAdmin = isAdminLike(currentUser?.roleId);
     if (!isAdmin) {
       throw new ForbiddenException('Only admins can update KDS assignments.');
     }
@@ -999,7 +1050,7 @@ export class ServicesService {
   }
 
   async updateQaFlag(id: string, qaFlagged: boolean, currentUser?: UsersEntity) {
-    const isAdmin = currentUser?.roleId === '1';
+    const isAdmin = isAdminLike(currentUser?.roleId);
     if (!isAdmin) {
       throw new ForbiddenException('Only admins can update the QA flag.');
     }

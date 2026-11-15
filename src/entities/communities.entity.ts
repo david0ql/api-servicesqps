@@ -25,6 +25,11 @@ export class CommunitiesEntity {
   @Column("boolean", { name: "show_in_reports", default: true })
   showInReports: boolean;
 
+  // El complex exige usar cera (wax). Se muestra destacado en la app al
+  // cleaner para que sepa si debe llevarla al servicio.
+  @Column("boolean", { name: "use_wax", default: false })
+  useWax: boolean;
+
   // Permite sacar un complex de los selectores de creacion sin borrar su
   // historia: los servicios pasados siguen contando en calendario y reportes.
   @Column("boolean", { name: "is_active", default: true })
@@ -53,6 +58,35 @@ export class CommunitiesEntity {
 
   @Column("decimal", { name: "longitude", precision: 10, scale: 7, nullable: true })
   longitude: string | null;
+
+  // Contactos del complex (supervisor de mantenimiento, tecnico y manager).
+  // Son datos libres (no usuarios del sistema): el cleaner los ve en la app
+  // para llamar desde el servicio, solo si showContactsInApp esta activo.
+  @Column("varchar", { name: "maintenance_supervisor_name", length: 120, nullable: true })
+  maintenanceSupervisorName: string | null;
+
+  @Column("varchar", { name: "maintenance_supervisor_phone", length: 30, nullable: true })
+  maintenanceSupervisorPhone: string | null;
+
+  @Column("varchar", { name: "technician_name", length: 120, nullable: true })
+  technicianName: string | null;
+
+  @Column("varchar", { name: "technician_phone", length: 30, nullable: true })
+  technicianPhone: string | null;
+
+  @Column("varchar", { name: "manager_contact_name", length: 120, nullable: true })
+  managerContactName: string | null;
+
+  @Column("varchar", { name: "manager_contact_phone", length: 30, nullable: true })
+  managerContactPhone: string | null;
+
+  @Column("boolean", { name: "show_contacts_in_app", default: false })
+  showContactsInApp: boolean;
+
+  // Si esta activo, managers (rol 3) y supervisores (rol 6) no pueden elegir
+  // hora al crear/editar servicios: el servicio queda siempre a las 00:00.
+  @Column("boolean", { name: "lock_schedule_for_staff", default: false })
+  lockScheduleForStaff: boolean;
 
   @Column("bigint", {
     name: "supervisor_user_id",

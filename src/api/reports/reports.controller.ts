@@ -5,9 +5,9 @@ import archiver from 'archiver';
 import { Response } from 'express';
 
 import { ReportsService } from './reports.service';
+import { isAdminLike } from '../../constants/roles';
 
 const ROL_VENDEDOR = '8';
-const ROL_ADMIN = '1';
 
 @Controller('reports')
 export class ReportsController {
@@ -46,7 +46,7 @@ export class ReportsController {
     @Query('endDate') endDate: string,
   ) {
     const usuario = req.user.user;
-    if (usuario.roleId !== ROL_VENDEDOR && usuario.roleId !== ROL_ADMIN) {
+    if (usuario.roleId !== ROL_VENDEDOR && !isAdminLike(usuario.roleId)) {
       throw new ForbiddenException('Solo los vendedores asociados pueden consultar sus comisiones.');
     }
     return this.reportsService.reporteVendedor(usuario.id, startDate, endDate);

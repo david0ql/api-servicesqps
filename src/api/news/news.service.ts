@@ -1,0 +1,328 @@
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Brackets, Repository, SelectQueryBuilder } from 'typeorm';
+import { Expo } from 'expo-server-sdk';
+
+import { NewsEntity } from '../../entities/news.entity';
+import { NewsReadsEntity } from '../../entities/news_reads.entity';
+import { UsersEntity } from '../../entities/users.entity';
+import { PushNotificationsService } from '../../push-notification/push-notification.service';
+import { PageOptionsDto } from '../../dto/page-options.dto';
+import { PageDto } from '../../dto/page.dto';
+import { PageMetaDto } from '../../dto/page-meta.dto';
+import { SearchDto } from '../../dto/search.dto';
+import { CreateNewsDto } from './dto/create-news.dto';
+import { UpdateNewsDto } from './dto/update-news.dto';
+
+/** Roles que administran Last News: super admin ('1') y, si existe, '9'. */
+export const NEWS_ADMIN_ROLE_IDS = new Set<string>(['1', '9']);
+
+const PUSH_BODY_MAX_LENGTH = 140;
+
+export interface NewsForUser {
+  id: string;
+  title: string;
+  body: string;
+  imageUrl: string | null;
+  publishedAt: Date | null;
+  read: boolean;
+  acceptedAt: Date | null;
+}
+
+type CurrentUser = Pick<UsersEntity, 'id' | 'roleId'>;
+
+export const isNewsAdmin = (user?: Pick<UsersEntity, 'roleId'> | null) =>
+  Boolean(user?.roleId && NEWS_ADMIN_ROLE_IDS.has(String(user.roleId)));
+
+/** null o [] = todos. Si hay roles, el del usuario debe estar incluido. */
+export const isNewsVisibleForRole = (
+  audienceRoles: string[] | null | undefined,
+  roleId: string | null | undefined,
+) => {
+  if (!audienceRoles || audienceRoles.length === 0) return true;
+  if (!roleId) return false;
+  return audienceRoles.map(String).includes(String(roleId));
+};
+
+const normalizeAudience = (audienceRoles?: string[] | null) => {
+  if (!audienceRoles) return null;
+  const unique = Array.from(new Set(audienceRoles.map((role) => String(role).trim()).filter(Boolean)));
+  return unique.length > 0 ? unique : null;
+};
+
+const truncate = (text: string, max: number) =>
+  text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+
+@Injectable()
+export class NewsService {
+  private readonly logger = new Logger(NewsService.name);
+
+  constructor(
+    @InjectRepository(NewsEntity)
+    private readonly newsRepository: Repository<NewsEntity>,
+    @InjectRepository(NewsReadsEntity)
+    private readonly newsReadsRepository: Repository<NewsReadsEntity>,
+    @InjectRepository(UsersEntity)
+    private readonly usersRepository: Repository<UsersEntity>,
+    private readonly pushNotificationsService: PushNotificationsService,
+  ) { }
+
+  assertAdmin(user?: CurrentUser | null) {
+    if (!isNewsAdmin(user)) {
+      throw new ForbiddenException('Only administrators can manage news.');
+    }
+  }
+
+  // ---------------------------------------------------------------- Admin
+
+  async create(createNewsDto: CreateNewsDto, currentUser: CurrentUser) {
+    this.assertAdmin(currentUser);
+
+    const shouldPublish = Boolean(createNewsDto.isPublished);
+    const news = this.newsRepository.create({
+      title: createNewsDto.title,
+      body: createNewsDto.body,
+      imageUrl: createNewsDto.imageUrl || null,
+      audienceRoles: normalizeAudience(createNewsDto.audienceRoles),
+      isPublished: shouldPublish,
+      publishedAt: shouldPublish ? new Date() : null,
+      createdByUserId: currentUser.id,
+    });
+
+    const saved = await this.newsRepository.save(news);
+
+    if (shouldPublish) {
+      await this.notifyPublished(saved);
+    }
+
+    return saved;
+  }
+
+  async findAllAdmin(pageOptionsDto: PageOptionsDto, currentUser: CurrentUser): Promise<PageDto<NewsEntity>> {
+    this.assertAdmin(currentUser);
+
+    const [items, totalCount] = await this.newsRepository.findAndCount({
+      order: { createdAt: pageOptionsDto.order ?? 'DESC' },
+      skip: pageOptionsDto.skip,
+      take: pageOptionsDto.take,
+    });
+
+    return new PageDto(items, new PageMetaDto({ totalCount, pageOptionsDto }));
+  }
+
+  async searchAdmin(searchDto: SearchDto, pageOptionsDto: PageOptionsDto, currentUser: CurrentUser): Promise<PageDto<NewsEntity>> {
+    this.assertAdmin(currentUser);
+
+    const [items, totalCount] = await this.newsRepository.createQueryBuilder('news')
+      .where('news.title LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+      .orWhere('news.body LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+      .orderBy('news.createdAt', pageOptionsDto.order ?? 'DESC')
+      .skip(pageOptionsDto.skip)
+      .take(pageOptionsDto.take)
+      .getManyAndCount();
+
+    return new PageDto(items, new PageMetaDto({ totalCount, pageOptionsDto }));
+  }
+
+  async findOne(id: string, currentUser: CurrentUser) {
+    const news = await this.newsRepository.findOne({ where: { id } });
+
+    if (!news) {
+      throw new NotFoundException(`News with ID ${id} not found`);
+    }
+
+    if (!isNewsAdmin(currentUser)
+      && (!news.isPublished || !isNewsVisibleForRole(news.audienceRoles, currentUser.roleId))) {
+      throw new NotFoundException(`News with ID ${id} not found`);
+    }
+
+    return news;
+  }
+
+  async update(id: string, updateNewsDto: UpdateNewsDto, currentUser: CurrentUser) {
+    this.assertAdmin(currentUser);
+
+    const news = await this.newsRepository.findOne({ where: { id } });
+    if (!news) {
+      throw new NotFoundException(`News with ID ${id} not found`);
+    }
+
+    // Solo se notifica la primera vez que se publica (publishedAt vacio).
+    const isFirstPublish = updateNewsDto.isPublished === true && !news.publishedAt;
+
+    if (updateNewsDto.title !== undefined) news.title = updateNewsDto.title;
+    if (updateNewsDto.body !== undefined) news.body = updateNewsDto.body;
+    if (updateNewsDto.imageUrl !== undefined) news.imageUrl = updateNewsDto.imageUrl || null;
+    if (updateNewsDto.audienceRoles !== undefined) news.audienceRoles = normalizeAudience(updateNewsDto.audienceRoles);
+    if (updateNewsDto.isPublished !== undefined) news.isPublished = updateNewsDto.isPublished;
+    if (isFirstPublish) news.publishedAt = new Date();
+
+    const saved = await this.newsRepository.save(news);
+
+    if (isFirstPublish) {
+      await this.notifyPublished(saved);
+    }
+
+    return saved;
+  }
+
+  async remove(id: string, currentUser: CurrentUser) {
+    this.assertAdmin(currentUser);
+
+    const news = await this.newsRepository.findOne({ where: { id } });
+    if (!news) {
+      throw new NotFoundException(`News with ID ${id} not found`);
+    }
+
+    await this.newsReadsRepository.delete({ newsId: id });
+    return this.newsRepository.remove(news);
+  }
+
+  // ---------------------------------------------------------------- App
+
+  /** Noticias publicadas visibles para el usuario, con la marca de leida. */
+  async findPublishedForUser(pageOptionsDto: PageOptionsDto, currentUser: CurrentUser): Promise<PageDto<NewsForUser>> {
+    const query = this.publishedForUserQuery(currentUser)
+      .orderBy('news.publishedAt', 'DESC')
+      .addOrderBy('news.id', 'DESC')
+      .skip(pageOptionsDto.skip)
+      .take(pageOptionsDto.take);
+
+    const [items, totalCount] = await query.getManyAndCount();
+    const readsByNews = await this.readsByNewsId(currentUser.id, items.map((item) => item.id));
+
+    return new PageDto(
+      items.map((item) => this.toUserNews(item, readsByNews.get(item.id) ?? null)),
+      new PageMetaDto({ totalCount, pageOptionsDto }),
+    );
+  }
+
+  /** Noticias publicadas visibles que el usuario aun no acepto, de la mas antigua a la mas nueva. */
+  async findUnreadForUser(currentUser: CurrentUser): Promise<NewsForUser[]> {
+    const items = await this.publishedForUserQuery(currentUser)
+      .leftJoin(
+        NewsReadsEntity,
+        'newsRead',
+        'newsRead.newsId = news.id AND newsRead.userId = :userId',
+        { userId: currentUser.id },
+      )
+      .andWhere('newsRead.id IS NULL')
+      .orderBy('news.publishedAt', 'ASC')
+      .addOrderBy('news.id', 'ASC')
+      .getMany();
+
+    return items.map((item) => this.toUserNews(item, null));
+  }
+
+  async accept(id: string, currentUser: CurrentUser) {
+    const news = await this.newsRepository.findOne({ where: { id } });
+
+    if (!news || !news.isPublished || !isNewsVisibleForRole(news.audienceRoles, currentUser.roleId)) {
+      throw new NotFoundException(`News with ID ${id} not found`);
+    }
+
+    const existing = await this.newsReadsRepository.findOne({
+      where: { newsId: id, userId: currentUser.id },
+    });
+
+    if (existing) {
+      return { newsId: id, acceptedAt: existing.acceptedAt };
+    }
+
+    try {
+      const saved = await this.newsReadsRepository.save(
+        this.newsReadsRepository.create({ newsId: id, userId: currentUser.id, acceptedAt: new Date() }),
+      );
+      return { newsId: id, acceptedAt: saved.acceptedAt };
+    } catch (error: any) {
+      // Doble tap / carrera: el indice unico ya tiene el registro.
+      if (error?.code === 'ER_DUP_ENTRY') {
+        const read = await this.newsReadsRepository.findOne({ where: { newsId: id, userId: currentUser.id } });
+        return { newsId: id, acceptedAt: read?.acceptedAt ?? new Date() };
+      }
+      throw error;
+    }
+  }
+
+  // ---------------------------------------------------------------- Internals
+
+  private publishedForUserQuery(currentUser: CurrentUser): SelectQueryBuilder<NewsEntity> {
+    const query = this.newsRepository.createQueryBuilder('news')
+      .where('news.isPublished = :isPublished', { isPublished: true });
+
+    // simple-json guarda '["4","7"]': se busca el id de rol entre comillas.
+    query.andWhere(new Brackets((qb) => {
+      qb.where('news.audienceRoles IS NULL');
+      if (currentUser.roleId) {
+        qb.orWhere('news.audienceRoles LIKE :roleLike', { roleLike: `%"${currentUser.roleId}"%` });
+      }
+    }));
+
+    return query;
+  }
+
+  private async readsByNewsId(userId: string, newsIds: string[]) {
+    const map = new Map<string, Date>();
+    if (newsIds.length === 0) return map;
+
+    const reads = await this.newsReadsRepository.createQueryBuilder('newsRead')
+      .where('newsRead.userId = :userId', { userId })
+      .andWhere('newsRead.newsId IN (:...newsIds)', { newsIds })
+      .getMany();
+
+    reads.forEach((read) => map.set(String(read.newsId), read.acceptedAt));
+    return map;
+  }
+
+  private toUserNews(news: NewsEntity, acceptedAt: Date | null): NewsForUser {
+    return {
+      id: news.id,
+      title: news.title,
+      body: news.body,
+      imageUrl: news.imageUrl,
+      publishedAt: news.publishedAt,
+      read: Boolean(acceptedAt),
+      acceptedAt,
+    };
+  }
+
+  /** Push (sin SMS) a todos los usuarios activos de la app con token Expo que esten en la audiencia. */
+  async notifyPublished(news: NewsEntity) {
+    try {
+      const users = await this.usersRepository.createQueryBuilder('user')
+        .select(['user.id', 'user.roleId', 'user.token'])
+        .where('user.isActive = :isActive', { isActive: true })
+        .andWhere("user.token IS NOT NULL AND user.token <> ''")
+        .getMany();
+
+      const tokens = Array.from(new Set(
+        users
+          .filter((user) => isNewsVisibleForRole(news.audienceRoles, user.roleId))
+          .map((user) => user.token)
+          .filter((token) => Expo.isExpoPushToken(token)),
+      ));
+
+      if (tokens.length === 0) {
+        return { sent: 0 };
+      }
+
+      await this.pushNotificationsService.sendNotification({
+        title: news.title,
+        body: truncate(news.body.replace(/\s+/g, ' ').trim(), PUSH_BODY_MAX_LENGTH),
+        data: { type: 'news', newsId: news.id },
+        tokensNotification: { tokens, users: [] },
+        skipSms: true,
+      });
+
+      return { sent: tokens.length };
+    } catch (error) {
+      this.logger.error(`Error sending news push for news ${news.id}`, error as any);
+      return { sent: 0 };
+    }
+  }
+}

@@ -13,6 +13,7 @@ import { TypesService } from './types.service';
 
 import { TypesEntity } from 'src/entities/types.entity';
 import { SearchDto } from 'src/dto/search.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 @ApiBearerAuth()
 @ApiTags('types')
@@ -26,7 +27,9 @@ export class TypesController {
     return this.typesService.create(createTypeDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/search')
+  @SkipApproval()
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto) {
     return this.typesService.searchByWord(searchDto, pageOptionsDto);

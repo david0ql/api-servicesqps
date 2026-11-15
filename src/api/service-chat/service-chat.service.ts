@@ -18,6 +18,7 @@ import { PageDto } from '../../dto/page.dto';
 import { PageMetaDto } from '../../dto/page-meta.dto';
 import { PageOptionsDto } from '../../dto/page-options.dto';
 import { ServiceChatThreadDto } from './dto/service-chat-thread.dto';
+import { isAdminLike } from '../../constants/roles';
 
 export interface ServiceChatUser {
   id: string;
@@ -61,7 +62,8 @@ export interface ServiceChatNotifyPayload {
   unitNumber: string | null;
 }
 
-const CHAT_ALLOWED_ROLES = new Set<string>(['1', '4', '7']);
+// '9' (Admin Papel) ve y escribe en el chat como un admin.
+const CHAT_ALLOWED_ROLES = new Set<string>(['1', '4', '7', '9']);
 const MAX_MESSAGE_LENGTH = 2000;
 const CHAT_RETENTION_MONTHS = 3;
 const MAX_NOTIFICATION_LENGTH = 140;
@@ -118,7 +120,11 @@ export class ServiceChatService {
       .select(['message'])
       .addSelect(['user.id', 'user.name', 'user.roleId'])
       .where('message.serviceId = :serviceId', { serviceId })
-      .orderBy('message.createdAt', 'ASC')
+      // Siempre DESC (mas reciente primero). createdAt tiene precision de
+      // segundos, asi que el id (autoincremental) desempata mensajes del mismo
+      // segundo y garantiza un orden estable.
+      .orderBy('message.createdAt', 'DESC')
+      .addOrderBy('message.id', 'DESC')
       .getMany();
 
     return {
@@ -268,7 +274,7 @@ export class ServiceChatService {
     user: ServiceChatUser | UsersEntity,
   ): Promise<PageDto<ServiceChatThreadDto>> {
     const roleId = user?.roleId ?? '';
-    const canListAllChats = roleId === '1' || roleId === '7';
+    const canListAllChats = isAdminLike(roleId) || roleId === '7';
     if (!canListAllChats) {
       throw new ForbiddenException('Chat list is only available to QA and super admins.');
     }
@@ -319,8 +325,10 @@ export class ServiceChatService {
       .addSelect('message.attachmentPath', 'lastMessageAttachmentPath')
       .addSelect('message.createdAt', 'lastMessageCreatedAt')
       .orderBy('message.createdAt', 'DESC')
-      .skip(pageOptionsDto.skip)
-      .take(pageOptionsDto.take)
+      .addOrderBy('message.id', 'DESC')
+      // getRawMany ignora skip/take; offset/limit si se aplican al SQL.
+      .offset(pageOptionsDto.skip)
+      .limit(pageOptionsDto.take)
       .setParameters(lastMessageSubQuery.getParameters())
       .getRawMany<{
         serviceId: string;
@@ -376,7 +384,7 @@ export class ServiceChatService {
       throw new ForbiddenException('Chat is only available to cleaners, QA, and admins.');
     }
 
-    const isAdmin = user.roleId === '1';
+    const isAdmin = isAdminLike(user.roleId);
     const isQa = user.roleId === '7';
     if (!isAdmin && !isQa) {
       const isCleaner = user.roleId === '4' && service.userId === user.id;

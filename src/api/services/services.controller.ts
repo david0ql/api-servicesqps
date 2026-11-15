@@ -14,6 +14,7 @@ import { SearchDto } from '../../dto/search.dto';
 import { ServicesEntity } from '../../entities/services.entity';
 import { ApiPaginatedResponse } from '../../decorators/api-paginated-response.decorator';
 import { PageDto } from '../../dto/page.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 @ApiBearerAuth()
 @ApiTags('services')
@@ -21,14 +22,18 @@ import { PageDto } from '../../dto/page.dto';
 export class ServicesController {
   constructor(private readonly servicesService: ServicesService) { }
 
+  // Lectura: no modifica datos.
   @Post('/search')
+  @SkipApproval()
   @ApiPaginatedResponse(ServicesEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<ServicesEntity>> {
     return this.servicesService.searchByWord(searchDto, pageOptionsDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/search/by-communities')
+  @SkipApproval()
   @ApiPaginatedResponse(ServicesEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWordByCommunities(
@@ -107,7 +112,9 @@ export class ServicesController {
     return this.servicesService.findOne(id);
   }
 
+  // Lectura: no modifica datos.
   @Post('/by-cleaner/:userId')
+  @SkipApproval()
   @UseGuards(AuthGuard('jwt'))
   findByCleaner(
     @Param('userId') userId: string,
@@ -116,7 +123,9 @@ export class ServicesController {
     return this.servicesService.findByCleaner(userId, pageOptionsDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/by-cleaner-and-date/:userId/:date')
+  @SkipApproval()
   @UseGuards(AuthGuard('jwt'))
   findByCleanerAndDate(
     @Param('userId') userId: string,
@@ -165,7 +174,9 @@ export class ServicesController {
     return this.servicesService.trackServiceFinish(id, trackServiceLocationDto, req.user.user);
   }
 
+  // Lectura: no modifica datos.
   @Post('/by-communities')
+  @SkipApproval()
   @ApiPaginatedResponse(ServicesEntity)
   @UseGuards(AuthGuard('jwt'))
   findByCommunities(
@@ -175,7 +186,9 @@ export class ServicesController {
     return this.servicesService.findByCommunities(servicesByManagerDto, pageOptionsDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/by-status/:statusID')
+  @SkipApproval()
   @ApiPaginatedResponse(ServicesEntity)
   @UseGuards(AuthGuard('jwt'))
   findByStatus(

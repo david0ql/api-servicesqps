@@ -13,6 +13,7 @@ import { CostsService } from './costs.service';
 
 import { CostsEntity } from 'src/entities/costs.entity';
 import { SearchDto } from 'src/dto/search.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 @ApiBearerAuth()
 @ApiTags('costs')
@@ -26,7 +27,9 @@ export class CostsController {
     return this.costsService.create(createCostDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/search')
+  @SkipApproval()
   @ApiPaginatedResponse(CostsEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<CostsEntity>> {

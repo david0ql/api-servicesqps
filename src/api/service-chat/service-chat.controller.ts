@@ -38,6 +38,7 @@ import { PageOptionsDto } from '../../dto/page-options.dto';
 import { ApiPaginatedResponse } from '../../decorators/api-paginated-response.decorator';
 import { PageDto } from '../../dto/page.dto';
 import { ServiceChatThreadDto } from './dto/service-chat-thread.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -71,7 +72,9 @@ export class ServiceChatController {
     return this.serviceChatService.getChatHistory(serviceId, req.user.user);
   }
 
+  // Chat: comunicación, no cambio de datos; además es multipart (no se puede re-ejecutar).
   @Post(':serviceId/evidence')
+  @SkipApproval()
   @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(
     FileInterceptor('file', {
