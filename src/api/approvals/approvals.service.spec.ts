@@ -97,11 +97,20 @@ const setup = (rows: Row[] = []) => {
   const push = { sendNotification: jest.fn(async () => ({ done: true })) };
   const executor = { replay: jest.fn(async (): Promise<{ status: number; body: any }> => ({ status: 200, body: { id: '123' } })) };
 
+  const links: Row[] = [];
+  const linksRepo = {
+    rows: links,
+    create: jest.fn((data: Row) => ({ ...data })),
+    save: jest.fn(async (data: Row) => { const row = { id: String(links.length + 1), ...data }; links.push(row); return row; }),
+    findOne: jest.fn(async ({ where }: Row) => links.find((l) => l.tokenHash === where.tokenHash) ?? null),
+    update: jest.fn(async ({ id }: Row, data: Row) => { Object.assign(links.find((l) => l.id === id)!, data); }),
+  };
+
   const service = new ApprovalsService(
-    pendingRepo as any, usersRepo as any, dataSource as any, textBee as any, push as any, executor as any,
+    pendingRepo as any, usersRepo as any, linksRepo as any, dataSource as any, textBee as any, push as any, executor as any,
   );
   const smsTo = (phone: string) => textBee.sendSMS.mock.calls.filter((c: any[]) => c[0] === phone).map((c: any[]) => c[1]);
-  return { service, pendingRepo, textBee, executor, smsTo };
+  return { service, pendingRepo, textBee, executor, smsTo, linksRepo };
 };
 
 const pendingRow = (over: Row = {}): Row => ({
@@ -309,6 +318,83 @@ describe('ApprovalsService', () => {
       const { service } = setup(rows);
       expect(await service.handleInboundSms('7865552222', 'no q12 falta la fecha')).toBe('decided:rejected');
       expect(rows[0]).toMatchObject({ status: 'rejected', comment: 'falta la fecha' });
+    });
+  });
+
+  describe('enlace de aprobación por SMS', () => {
+    const env = envVars as any;
+    beforeEach(() => { env.APPROVAL_LINK_BASE_URL = 'https://web.example.com/'; });
+    afterEach(() => { delete env.APPROVAL_LINK_BASE_URL; });
+
+    const tokenFrom = (sms: string) => /#\/approve\/([A-Za-z0-9_-]+)/.exec(sms)![1];
+
+    it('cada admin recibe su propio enlace y no vence', async () => {
+      const { service, smsTo, linksRepo } = setup();
+      await service.queueRequest({ method: 'PATCH', url: '/services/123', body: { date: '2026-11-21' }, user: diego as any });
+      const felixSms = smsTo(felix.phoneNumber)[0];
+      const anaSms = smsTo(ana.phoneNumber)[0];
+      expect(felixSms).toContain('https://web.example.com/#/approve/');
+      expect(tokenFrom(felixSms)).not.toBe(tokenFrom(anaSms));
+      expect(linksRepo.rows).toHaveLength(2);
+      expect(linksRepo.rows.every((l: Row) => l.expiresAt === null)).toBe(true);
+    });
+
+    it('muestra la solicitud y permite rechazar una sola vez', async () => {
+      const { service, smsTo, pendingRepo } = setup();
+      await service.queueRequest({ method: 'PATCH', url: '/services/123', body: { date: '2026-11-21' }, user: diego as any });
+      const token = tokenFrom(smsTo(felix.phoneNumber)[0]);
+
+      const view = await service.getLinkView(token);
+      expect(view).toMatchObject({ status: 'pending', adminName: 'Felix', expired: false, used: false });
+      expect(view.summary).toContain('editar servicio #123');
+
+      const after = await service.decideFromLink(token, 'reject', 'no corresponde');
+      expect(after.status).toBe('rejected');
+      expect(pendingRepo.rows[0]).toMatchObject({ status: 'rejected', decisionChannel: 'link', decidedByUserId: '1', comment: 'no corresponde' });
+      await expect(service.decideFromLink(token, 'approve')).rejects.toThrow('ya se usó');
+    });
+
+    it('si otro admin ya decidió, el enlace avisa quién', async () => {
+      const { service, smsTo } = setup();
+      await service.queueRequest({ method: 'PATCH', url: '/services/123', body: { date: '2026-11-21' }, user: diego as any });
+      const felixToken = tokenFrom(smsTo(felix.phoneNumber)[0]);
+      const anaToken = tokenFrom(smsTo(ana.phoneNumber)[0]);
+      await service.decideFromLink(anaToken, 'reject');
+      await expect(service.decideFromLink(felixToken, 'approve')).rejects.toThrow(/rechazada por Ana/);
+    });
+
+    it('token inválido: 404', async () => {
+      const { service } = setup();
+      await expect(service.getLinkView('x'.repeat(24))).rejects.toThrow('Enlace no válido');
+    });
+  });
+
+  describe('remind (reenviar SMS)', () => {
+    const old = () => new Date(Date.now() - 11 * 60 * 1000);
+
+    it('el Admin Papel reenvía su solicitud pendiente a todos los admins', async () => {
+      const rows = [pendingRow({ createdAt: old() })];
+      const { service, smsTo } = setup(rows);
+      const res = await service.remind('10', diego as any);
+      expect(res).toMatchObject({ ok: true, code: 'A12', sentTo: 2, remindCount: 1 });
+      expect(smsTo(felix.phoneNumber)[0]).toContain('recordatorio');
+      expect(smsTo(ana.phoneNumber)[0]).toContain('A12');
+      expect(rows[0].lastRemindedAt).toBeInstanceOf(Date);
+    });
+
+    it('no deja reenviar antes de 10 minutos', async () => {
+      const rows = [pendingRow({ createdAt: new Date() })];
+      const { service, textBee } = setup(rows);
+      await expect(service.remind('10', diego as any)).rejects.toThrow(/Puedes volver a enviarla en/);
+      expect(textBee.sendSMS).not.toHaveBeenCalled();
+    });
+
+    it('solo solicitudes propias y pendientes', async () => {
+      const { service } = setup([pendingRow({ createdAt: old(), status: 'rejected' })]);
+      await expect(service.remind('10', diego as any)).rejects.toThrow('ya no está pendiente');
+      await expect(service.remind('10', felix as any)).rejects.toThrow('Solo el Admin Papel');
+      const other = setup([pendingRow({ createdAt: old(), userId: '77' })]);
+      await expect(other.service.remind('10', diego as any)).rejects.toThrow('no encontrada');
     });
   });
 

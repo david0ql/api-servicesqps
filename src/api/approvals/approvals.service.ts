@@ -19,6 +19,7 @@ import {
   PendingChangesEntity,
 } from '../../entities/pending_changes.entity';
 import { UsersEntity } from '../../entities/users.entity';
+import { ApprovalLinksEntity } from '../../entities/approval_links.entity';
 import { ServicesEntity } from '../../entities/services.entity';
 import { RecurringServicesEntity } from '../../entities/recurring_services.entity';
 import { CommunitiesEntity } from '../../entities/communities.entity';
@@ -47,6 +48,8 @@ import {
   msgConfirmationForDecider,
   msgExpired,
   msgNewRequest,
+  msgNewRequestWithLink,
+  msgReminder,
   msgNoPending,
   msgNotUnderstood,
   msgResultForOtherAdmins,
@@ -85,6 +88,9 @@ const RESOURCE_ENTITIES: Record<string, { entity: EntityTarget<any>; relations?:
   statuses: { entity: StatusesEntity },
 };
 
+/** Minutos mínimos entre reenvíos del SMS de una misma solicitud. */
+export const REMIND_COOLDOWN_MINUTES = 10;
+
 export const hashApprovalToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
 const errorMessageFrom = (status: number, body: any): string => {
@@ -102,6 +108,8 @@ export class ApprovalsService {
     private readonly pendingRepository: Repository<PendingChangesEntity>,
     @InjectRepository(UsersEntity)
     private readonly usersRepository: Repository<UsersEntity>,
+    @InjectRepository(ApprovalLinksEntity)
+    private readonly linksRepository: Repository<ApprovalLinksEntity>,
     private readonly dataSource: DataSource,
     private readonly textBeeService: TextBeeService,
     private readonly pushNotificationsService: PushNotificationsService,
@@ -139,9 +147,121 @@ export class ApprovalsService {
     this.logger.log(`Solicitud ${code} creada por ${input.user.id}: ${summary}`);
 
     const admins = await this.activeAdmins();
-    await this.sendSmsMany(admins, msgNewRequest(input.user.name, change));
+    await Promise.all(admins.map(async (admin) => {
+      const url = await this.createApprovalLink(change, admin);
+      const text = url
+        ? msgNewRequestWithLink(input.user.name, change, url)
+        : msgNewRequest(input.user.name, change);
+      await this.sendSms(admin, text);
+    }));
 
     return change;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Enlace de aprobación (SMS -> navegador, sin iniciar sesión)
+  // ---------------------------------------------------------------------------
+
+  /** Crea el enlace de un admin para una solicitud. Devuelve null si no hay URL base configurada. */
+  private async createApprovalLink(change: PendingChangesEntity, admin: UsersEntity): Promise<string | null> {
+    const base = String(envVars.APPROVAL_LINK_BASE_URL ?? '').trim().replace(/\/+$/, '');
+    if (!base) return null;
+    const token = randomBytes(18).toString('base64url');
+    await this.linksRepository.save(this.linksRepository.create({
+      pendingChangeId: change.id,
+      adminUserId: admin.id,
+      tokenHash: hashApprovalToken(token),
+      expiresAt: null,
+      usedAt: null,
+    }));
+    return `${base}/#/approve/${token}`;
+  }
+
+  /**
+   * El Admin Papel reenvía el SMS de una solicitud suya que sigue pendiente
+   * (por si el admin no la vio). Cada admin recibe un enlace nuevo. Máximo un
+   * reenvío cada REMIND_COOLDOWN_MINUTES.
+   */
+  async remind(changeId: string, requester: UsersEntity) {
+    if (!isAdminPapel(requester?.roleId)) {
+      throw new ForbiddenException('Solo el Admin Papel puede reenviar sus solicitudes.');
+    }
+    const change = await this.findWithUsers(changeId);
+    if (!change || String(change.userId) !== String(requester.id)) {
+      throw new NotFoundException(`Solicitud ${changeId} no encontrada`);
+    }
+    if (change.status !== 'pending') {
+      throw new ConflictException(`La solicitud ${change.code} ya no está pendiente.`);
+    }
+    const last = change.lastRemindedAt ?? change.createdAt;
+    const waitMs = REMIND_COOLDOWN_MINUTES * 60 * 1000 - (Date.now() - new Date(last).getTime());
+    if (waitMs > 0) {
+      const minutes = Math.ceil(waitMs / 60000);
+      throw new ConflictException(`Ya se envió hace poco. Puedes volver a enviarla en ${minutes} min.`);
+    }
+
+    const admins = await this.activeAdmins();
+    if (!admins.length) throw new ConflictException('No hay administradores con teléfono para avisar.');
+    await Promise.all(admins.map(async (admin) => {
+      const url = await this.createApprovalLink(change, admin);
+      await this.sendSms(admin, msgReminder(change.user?.name ?? requester.name, change, url));
+    }));
+
+    const remindCount = (change.remindCount ?? 0) + 1;
+    await this.pendingRepository.update(change.id, { lastRemindedAt: new Date(), remindCount });
+    this.logger.log(`Solicitud ${change.code} reenviada por ${requester.id} a ${admins.length} admin(s).`);
+    return { ok: true, code: change.code, sentTo: admins.length, remindCount };
+  }
+
+  private async findLink(token: string) {
+    if (!token || token.length < 16 || token.length > 64) throw new NotFoundException('Enlace no válido.');
+    const link = await this.linksRepository.findOne({ where: { tokenHash: hashApprovalToken(token) } });
+    if (!link) throw new NotFoundException('Enlace no válido.');
+    const change = await this.findWithUsers(link.pendingChangeId);
+    if (!change) throw new NotFoundException('La solicitud ya no existe.');
+    const admin = await this.usersRepository.findOne({
+      where: { id: link.adminUserId },
+      select: ['id', 'name', 'phoneNumber', 'token', 'roleId', 'email', 'isActive'],
+    });
+    return { link, change, admin };
+  }
+
+  /** Datos para la página pública del enlace (sin el body de la petición). */
+  async getLinkView(token: string) {
+    const { link, change, admin } = await this.findLink(token);
+    return {
+      code: change.code,
+      summary: change.summary,
+      method: change.method,
+      requesterName: change.user?.name ?? null,
+      createdAt: change.createdAt,
+      status: change.status,
+      decidedByName: change.decidedByUser?.name ?? null,
+      decidedAt: change.decidedAt,
+      comment: change.comment,
+      error: change.error,
+      adminName: admin?.name ?? null,
+      expired: Boolean(link.expiresAt && link.expiresAt.getTime() < Date.now()),
+      used: Boolean(link.usedAt),
+    };
+  }
+
+  async decideFromLink(token: string, decision: ApprovalDecision, comment?: string | null) {
+    const { link, admin } = await this.findLink(token);
+    if (!admin || !admin.isActive || String(admin.roleId) !== ROLE_SUPER_ADMIN) {
+      throw new ForbiddenException('Este enlace ya no es válido para tu usuario.');
+    }
+    if (link.usedAt) throw new ConflictException('Este enlace ya se usó.');
+    if (link.expiresAt && link.expiresAt.getTime() < Date.now()) throw new ConflictException('El enlace venció.');
+
+    const outcome = await this.decide(link.pendingChangeId, admin, decision, comment ?? null, 'link');
+    await this.linksRepository.update({ id: link.id }, { usedAt: new Date() });
+    if (!outcome.applied) {
+      throw new ConflictException(
+        msgAlreadyDecided(outcome.change.code, outcome.change.status, outcome.alreadyDecidedBy).replace(/^QPS: /, ''),
+      );
+    }
+    return this.getLinkView(token);
   }
 
   /** Busca el registro afectado (o la comunidad al crear) para el resumen. */
@@ -442,6 +562,8 @@ export class ApprovalsService {
   @Cron(CronExpression.EVERY_30_MINUTES)
   async expirePending() {
     const hours = envVars.APPROVAL_EXPIRATION_HOURS ?? 48;
+    // 0 = las solicitudes no vencen.
+    if (!hours || hours <= 0) return;
     const cutoff = new Date(Date.now() - hours * 3600 * 1000);
     const stale = await this.pendingRepository.find({
       where: { status: 'pending', createdAt: LessThan(cutoff) },

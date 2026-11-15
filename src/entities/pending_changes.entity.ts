@@ -18,7 +18,7 @@ export type PendingChangeStatus =
   | 'failed'
   | 'expired';
 
-export type PendingChangeDecisionChannel = 'sms' | 'web';
+export type PendingChangeDecisionChannel = 'sms' | 'web' | 'link';
 
 /**
  * Solicitud de cambio hecha por un usuario Admin Papel (rol 9). La petición
@@ -60,6 +60,13 @@ export class PendingChangesEntity {
 
   @Column("varchar", { name: "decision_channel", length: 5, nullable: true })
   decisionChannel: PendingChangeDecisionChannel | null;
+
+  /** Último reenvío del SMS a los admins (botón "Reenviar SMS" del Admin Papel). */
+  @Column("timestamp", { name: "last_reminded_at", nullable: true })
+  lastRemindedAt: Date | null;
+
+  @Column("int", { name: "remind_count", default: 0 })
+  remindCount: number;
 
   @Column("text", { name: "comment", nullable: true })
   comment: string | null;
