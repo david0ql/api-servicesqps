@@ -20,6 +20,7 @@ import { ServiceStatusId } from '../../constants/service-status.enum';
 import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 import { EventoServicio, ServiceNotifierService } from './service-notifier.service';
+import { aplicaBloqueoDeHora, edicionInvolucraHora, HORA_BLOQUEADA, rolSujetoABloqueoDeHora } from './schedule-lock.util';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -533,6 +534,10 @@ export class ServicesService {
     console.log('DTO without extraId:', JSON.stringify(createServiceDtoCopy, null, 2));
     console.log('===============================');
 
+    if (await this.debeBloquearHora(createServiceDtoCopy.communityId, currentUser)) {
+      createServiceDtoCopy.schedule = HORA_BLOQUEADA;
+    }
+
     const isAssigned = Boolean(
       createServiceDtoCopy.userId && createServiceDtoCopy.statusId === ServiceStatusId.Pending,
     );
@@ -584,6 +589,7 @@ export class ServicesService {
         'assignedByUserId',
         'assignmentReminderStage',
         'assignmentExpiredAt',
+        'communityId',
       ],
     });
 
@@ -626,9 +632,15 @@ export class ServicesService {
     );
     const isManualUnassignment = typeof updateServiceDto.userId !== 'undefined' && !updateServiceDto.userId;
 
+    const bloquearHora = edicionInvolucraHora(updateServiceDto) && await this.debeBloquearHora(
+      updateServiceDto.communityId ?? existingService.communityId,
+      currentUser,
+    );
+
     const service = await this.servicesRepository.preload({
       id,
       ...updateServiceDto,
+      ...(bloquearHora ? { schedule: HORA_BLOQUEADA } : {}),
       ...(isNewAssignment
         ? {
             assignedAt: new Date(),
@@ -785,6 +797,18 @@ export class ServicesService {
     if (service.userId !== currentUser.id) {
       throw new ForbiddenException('You can only mark your own assigned services.');
     }
+  }
+
+  // Ver schedule-lock.util.ts. Solo consulta la comunidad si el rol aplica.
+  private async debeBloquearHora(communityId?: string | null, currentUser?: UsersEntity): Promise<boolean> {
+    if (!communityId || !rolSujetoABloqueoDeHora(currentUser?.roleId)) {
+      return false;
+    }
+    const community = await this.communitiesRepository.findOne({
+      where: { id: communityId },
+      select: ['id', 'lockScheduleForStaff'],
+    });
+    return aplicaBloqueoDeHora(currentUser.roleId, community?.lockScheduleForStaff);
   }
 
   private createCommunityDateRangeQuery(communityId: string, startDate: string, endDate: string) {
