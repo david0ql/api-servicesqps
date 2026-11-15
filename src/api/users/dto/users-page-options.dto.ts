@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 import { PageOptionsDto } from '../../../dto/page-options.dto';
 
@@ -20,4 +20,12 @@ export class UsersPageOptionsDto extends PageOptionsDto {
   @IsString()
   @IsOptional()
   readonly roleId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por estado: active = solo activos, inactive = solo inactivos. Sin valor = todos.',
+    enum: ['active', 'inactive'],
+  })
+  @IsIn(['active', 'inactive'])
+  @IsOptional()
+  readonly status?: 'active' | 'inactive';
 }

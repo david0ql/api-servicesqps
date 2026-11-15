@@ -66,6 +66,9 @@ export class UsersService {
     if (pageOptionsDto.roleId) {
       searchedItemsByWord.andWhere('users.roleId = :roleId', { roleId: pageOptionsDto.roleId });
     }
+    if (pageOptionsDto.status) {
+      searchedItemsByWord.andWhere('users.isActive = :isActive', { isActive: pageOptionsDto.status === 'active' });
+    }
 
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount();
 
@@ -77,8 +80,10 @@ export class UsersService {
   async findAll(pageOptionsDto: UsersPageOptionsDto): Promise<PageDto<UsersEntity>> {
     const queryBuilder = this.usersRepository.createQueryBuilder('user');
     queryBuilder.innerJoinAndSelect('user.role', 'role');
-    if (pageOptionsDto.activeOnly) {
+    if (pageOptionsDto.activeOnly || pageOptionsDto.status === 'active') {
       queryBuilder.andWhere('user.isActive = :isActive', { isActive: true });
+    } else if (pageOptionsDto.status === 'inactive') {
+      queryBuilder.andWhere('user.isActive = :isActive', { isActive: false });
     }
     if (pageOptionsDto.roleId) {
       queryBuilder.andWhere('user.roleId = :roleId', { roleId: pageOptionsDto.roleId });
