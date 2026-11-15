@@ -87,3 +87,32 @@ describe('UsersService.findAll', () => {
     expect(qb.andWhere).not.toHaveBeenCalled();
   });
 });
+
+describe('UsersService filtro por estado (activo/inactivo)', () => {
+  it.each([
+    ['active', true],
+    ['inactive', false],
+  ])('findAll con status=%s filtra isActive=%s', async (status, isActive) => {
+    const { qb } = createQueryBuilderMock();
+    const { service } = createService(qb);
+    await service.findAll(pageOptions({ status }));
+    expect(qb.andWhere).toHaveBeenCalledWith('user.isActive = :isActive', { isActive });
+  });
+
+  it.each([
+    ['active', true],
+    ['inactive', false],
+  ])('searchByWord con status=%s filtra isActive=%s', async (status, isActive) => {
+    const { qb } = createQueryBuilderMock();
+    const { service } = createService(qb);
+    await service.searchByWord({ searchWord: 'ana' } as any, pageOptions({ status }));
+    expect(qb.andWhere).toHaveBeenCalledWith('users.isActive = :isActive', { isActive });
+  });
+
+  it('sin status no filtra por estado', async () => {
+    const { qb } = createQueryBuilderMock();
+    const { service } = createService(qb);
+    await service.findAll(pageOptions());
+    expect(qb.andWhere).not.toHaveBeenCalled();
+  });
+});
