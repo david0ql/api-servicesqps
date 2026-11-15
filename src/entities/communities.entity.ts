@@ -25,6 +25,11 @@ export class CommunitiesEntity {
   @Column("boolean", { name: "show_in_reports", default: true })
   showInReports: boolean;
 
+  // El complex exige usar cera (wax). Se muestra destacado en la app al
+  // cleaner para que sepa si debe llevarla al servicio.
+  @Column("boolean", { name: "use_wax", default: false })
+  useWax: boolean;
+
   // Permite sacar un complex de los selectores de creacion sin borrar su
   // historia: los servicios pasados siguen contando en calendario y reportes.
   @Column("boolean", { name: "is_active", default: true })

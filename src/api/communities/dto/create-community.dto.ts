@@ -13,6 +13,11 @@ export class CreateCommunityDto {
     @IsBoolean()
     showInReports?: boolean;
 
+    @ApiProperty({ description: 'Indica si el complex utiliza cera (wax)', example: false, required: false, default: false })
+    @IsOptional()
+    @IsBoolean()
+    useWax?: boolean;
+
     @ApiProperty({ description: 'ID del supervisor de la comunidad', example: '1', required: false })
     @IsOptional()
     @IsString()
