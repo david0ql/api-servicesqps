@@ -20,6 +20,7 @@ import { ServiceStatusId } from '../../constants/service-status.enum';
 import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 import { EventoServicio, ServiceNotifierService } from './service-notifier.service';
+import { isAdminLike } from '../../constants/roles';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -540,7 +541,7 @@ export class ServicesService {
       ...createServiceDtoCopy,
       assignedAt: isAssigned ? new Date() : null,
       assignedByUserId: isAssigned
-        ? (recurringAssignedByUserId ?? (currentUser?.roleId === '1' ? currentUser.id : null))
+        ? (recurringAssignedByUserId ?? (isAdminLike(currentUser?.roleId) ? currentUser.id : null))
         : null,
       assignmentReminderStage: 0,
       assignmentExpiredAt: null,
@@ -632,7 +633,7 @@ export class ServicesService {
       ...(isNewAssignment
         ? {
             assignedAt: new Date(),
-            assignedByUserId: currentUser?.roleId === '1' ? currentUser.id : null,
+            assignedByUserId: isAdminLike(currentUser?.roleId) ? currentUser.id : null,
             assignmentReminderStage: 0,
             assignmentExpiredAt: null,
           }
@@ -937,7 +938,7 @@ export class ServicesService {
     body: { kdsDay: string | null; kdsOrder?: number | null; kdsWeekOf?: string | null },
     currentUser?: UsersEntity,
   ) {
-    const isAdmin = currentUser?.roleId === '1';
+    const isAdmin = isAdminLike(currentUser?.roleId);
     if (!isAdmin) {
       throw new ForbiddenException('Only admins can update KDS assignments.');
     }
@@ -999,7 +1000,7 @@ export class ServicesService {
   }
 
   async updateQaFlag(id: string, qaFlagged: boolean, currentUser?: UsersEntity) {
-    const isAdmin = currentUser?.roleId === '1';
+    const isAdmin = isAdminLike(currentUser?.roleId);
     if (!isAdmin) {
       throw new ForbiddenException('Only admins can update the QA flag.');
     }

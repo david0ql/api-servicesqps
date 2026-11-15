@@ -7,6 +7,7 @@ import { ServicesEntity } from '../../entities/services.entity';
 import { UsersEntity } from '../../entities/users.entity';
 import { CommunitiesEntity } from '../../entities/communities.entity';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
+import { ADMIN_LIKE_ROLE_IDS } from '../../constants/roles';
 
 /**
  * Unico lugar donde se decide QUIEN recibe aviso de cada evento de un servicio
@@ -154,7 +155,8 @@ export class ServiceNotifierService {
     }
 
     const admin = await this.usersRepository.findOne({
-      where: { id: service.assignedByUserId, roleId: ROL_ADMIN, isActive: true },
+      // El asignador puede ser super admin o Admin Papel (asignación aprobada).
+      where: { id: service.assignedByUserId, roleId: In([...ADMIN_LIKE_ROLE_IDS]), isActive: true },
       select: ['id', 'name', 'token', 'phoneNumber', 'roleId'],
     });
     if (!admin?.phoneNumber?.trim()) {

@@ -15,6 +15,7 @@ import { UsersEntity } from 'src/entities/users.entity';
 import { CreateRecurringServiceDto } from './dto/create-recurring-service.dto';
 import { UpdateRecurringServiceDto } from './dto/update-recurring-service.dto';
 import { ServicesService } from '../services/services.service';
+import { isAdminLike } from 'src/constants/roles';
 
 const ALLOWED_DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 const DAY_TO_ISO: Record<string, number> = {
@@ -59,7 +60,7 @@ export class RecurringServicesService {
       extraIds: createRecurringServiceDto.extraIds ?? [],
       isActive: createRecurringServiceDto.isActive ?? true,
       startDate,
-      assignedByUserId: createRecurringServiceDto.userId && currentUser?.roleId === '1'
+      assignedByUserId: createRecurringServiceDto.userId && isAdminLike(currentUser?.roleId)
         ? currentUser.id
         : null,
     });
@@ -145,7 +146,7 @@ export class RecurringServicesService {
       ...(updateRecurringServiceDto.extraIds ? { extraIds: updateRecurringServiceDto.extraIds } : {}),
       ...(typeof updateRecurringServiceDto.userId !== 'undefined'
         ? {
-            assignedByUserId: updateRecurringServiceDto.userId && currentUser?.roleId === '1'
+            assignedByUserId: updateRecurringServiceDto.userId && isAdminLike(currentUser?.roleId)
               ? currentUser.id
               : null,
           }
