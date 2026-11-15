@@ -54,6 +54,11 @@ export class CommunitiesEntity {
   @Column("decimal", { name: "longitude", precision: 10, scale: 7, nullable: true })
   longitude: string | null;
 
+  // Si esta activo, managers (rol 3) y supervisores (rol 6) no pueden elegir
+  // hora al crear/editar servicios: el servicio queda siempre a las 00:00.
+  @Column("boolean", { name: "lock_schedule_for_staff", default: false })
+  lockScheduleForStaff: boolean;
+
   @Column("bigint", {
     name: "supervisor_user_id",
     unsigned: true,

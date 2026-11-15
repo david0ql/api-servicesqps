@@ -60,4 +60,9 @@ export class CreateCommunityDto {
     @Type(() => Number)
     @IsLongitude()
     longitude?: number | null;
+
+    @ApiProperty({ description: 'Impide que managers y supervisores elijan hora al crear/editar servicios (quedan a las 00:00)', example: false, required: false, default: false })
+    @IsOptional()
+    @IsBoolean()
+    lockScheduleForStaff?: boolean;
 }
