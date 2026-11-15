@@ -15,6 +15,7 @@ import { UsersEntity } from 'src/entities/users.entity';
 import { CreateRecurringServiceDto } from './dto/create-recurring-service.dto';
 import { UpdateRecurringServiceDto } from './dto/update-recurring-service.dto';
 import { ServicesService } from '../services/services.service';
+import { CommunityBlackoutsService } from '../community-blackouts/community-blackouts.service';
 
 const ALLOWED_DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 const DAY_TO_ISO: Record<string, number> = {
@@ -39,6 +40,7 @@ export class RecurringServicesService {
     @InjectRepository(UsersEntity)
     private readonly usersRepository: Repository<UsersEntity>,
     private readonly servicesService: ServicesService,
+    private readonly blackouts: CommunityBlackoutsService,
   ) {}
 
   async create(createRecurringServiceDto: CreateRecurringServiceDto, currentUser?: UsersEntity) {
@@ -220,6 +222,17 @@ export class RecurringServicesService {
           continue;
         }
 
+        // Festividades / fuera de servicio: se salta solo ese dia, el resto sigue.
+        const blocked = await this.blackouts.findBlocking({
+          communityId: recurring.communityId,
+          date: formattedDate,
+          schedule: recurring.schedule,
+        });
+        if (blocked) {
+          this.logger.log(`Recurring service ${recurring.id}: skipped ${formattedDate}. ${blocked.message}`);
+          continue;
+        }
+
         const payload = {
           date: formattedDate,
           schedule: recurring.schedule,
@@ -238,7 +251,7 @@ export class RecurringServicesService {
         try {
           await this.servicesService.create(payload, undefined, recurring.assignedByUserId);
         } catch (error) {
-          this.logger.warn(`Failed to create recurring service ${recurring.id} for ${formattedDate}`);
+          this.logger.warn(`Failed to create recurring service ${recurring.id} for ${formattedDate}: ${(error as Error)?.message ?? error}`);
         }
       }
     }

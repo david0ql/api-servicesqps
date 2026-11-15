@@ -21,6 +21,7 @@ import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 import { EventoServicio, ServiceNotifierService } from './service-notifier.service';
 import { aplicaBloqueoDeHora, edicionInvolucraHora, HORA_BLOQUEADA, rolSujetoABloqueoDeHora } from './schedule-lock.util';
+import { CommunityBlackoutsService } from '../community-blackouts/community-blackouts.service';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -52,6 +53,7 @@ export class ServicesService {
     private readonly communitiesRepository: Repository<CommunitiesEntity>,
     private readonly pushNotificationsService: PushNotificationsService,
     private readonly notifier: ServiceNotifierService,
+    private readonly blackouts: CommunityBlackoutsService,
   ) { }
 
   private addActiveRecurringFilter(queryBuilder: any) {
@@ -538,6 +540,10 @@ export class ServicesService {
       createServiceDtoCopy.schedule = HORA_BLOQUEADA;
     }
 
+    // Dias/horarios fuera de servicio de la comunidad (festividades): 400.
+    // Se valida con la hora efectiva (ya forzada a 00:00 si aplica el bloqueo).
+    await this.blackouts.assertServiceAllowed({ ...createServiceDto, schedule: createServiceDtoCopy.schedule });
+
     const isAssigned = Boolean(
       createServiceDtoCopy.userId && createServiceDtoCopy.statusId === ServiceStatusId.Pending,
     );
@@ -635,6 +641,12 @@ export class ServicesService {
     const bloquearHora = edicionInvolucraHora(updateServiceDto) && await this.debeBloquearHora(
       updateServiceDto.communityId ?? existingService.communityId,
       currentUser,
+    );
+
+    // Solo valida si se mueve el servicio (fecha, hora o comunidad), con la hora efectiva.
+    await this.blackouts.assertServiceUpdateAllowed(
+      id,
+      bloquearHora ? { ...updateServiceDto, schedule: HORA_BLOQUEADA } : updateServiceDto,
     );
 
     const service = await this.servicesRepository.preload({
