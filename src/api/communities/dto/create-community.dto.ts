@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsString, IsOptional, IsLatitude, IsLongitude, ValidateIf, IsNumber, Min, Max } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsString, IsOptional, IsLatitude, IsLongitude, ValidateIf, IsNumber, Min, Max, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateCommunityDto {
@@ -65,4 +65,52 @@ export class CreateCommunityDto {
     @Type(() => Number)
     @IsLongitude()
     longitude?: number | null;
+
+    // Contactos del complex que el cleaner puede llamar desde la app.
+    @ApiProperty({ description: 'Nombre del supervisor de mantenimiento', example: 'John Doe', required: false, nullable: true })
+    @IsOptional()
+    @ValidateIf((_, value) => value !== null)
+    @IsString()
+    @MaxLength(120)
+    maintenanceSupervisorName?: string | null;
+
+    @ApiProperty({ description: 'Telefono del supervisor de mantenimiento', example: '+1 407 555 0100', required: false, nullable: true })
+    @IsOptional()
+    @ValidateIf((_, value) => value !== null)
+    @IsString()
+    @MaxLength(30)
+    maintenanceSupervisorPhone?: string | null;
+
+    @ApiProperty({ description: 'Nombre del tecnico', example: 'Jane Doe', required: false, nullable: true })
+    @IsOptional()
+    @ValidateIf((_, value) => value !== null)
+    @IsString()
+    @MaxLength(120)
+    technicianName?: string | null;
+
+    @ApiProperty({ description: 'Telefono del tecnico', example: '+1 407 555 0101', required: false, nullable: true })
+    @IsOptional()
+    @ValidateIf((_, value) => value !== null)
+    @IsString()
+    @MaxLength(30)
+    technicianPhone?: string | null;
+
+    @ApiProperty({ description: 'Nombre del manager (contacto)', example: 'Mary Smith', required: false, nullable: true })
+    @IsOptional()
+    @ValidateIf((_, value) => value !== null)
+    @IsString()
+    @MaxLength(120)
+    managerContactName?: string | null;
+
+    @ApiProperty({ description: 'Telefono del manager (contacto)', example: '+1 407 555 0102', required: false, nullable: true })
+    @IsOptional()
+    @ValidateIf((_, value) => value !== null)
+    @IsString()
+    @MaxLength(30)
+    managerContactPhone?: string | null;
+
+    @ApiProperty({ description: 'Mostrar los contactos del complex en la app del cleaner', example: false, required: false, default: false })
+    @IsOptional()
+    @IsBoolean()
+    showContactsInApp?: boolean;
 }
