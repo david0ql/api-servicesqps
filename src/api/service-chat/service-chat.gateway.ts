@@ -41,6 +41,14 @@ export class ServiceChatGateway {
   ) {}
 
   async handleConnection(client: Socket) {
+    // Los eventos (join/send) pueden llegar antes de que termine la consulta
+    // del usuario; los handlers esperan esta promesa antes de validar.
+    const authReady = this.authenticate(client);
+    client.data.authReady = authReady;
+    await authReady;
+  }
+
+  private async authenticate(client: Socket): Promise<void> {
     const token = this.getTokenFromClient(client);
     if (!token) {
       client.disconnect();
@@ -76,7 +84,7 @@ export class ServiceChatGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: JoinPayload,
   ) {
-    const user = this.getUserFromClient(client);
+    const user = await this.resolveUser(client);
     if (!user) {
       client.emit('serviceChat:error', { message: 'Unauthorized.' });
       return;
@@ -115,7 +123,7 @@ export class ServiceChatGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SendPayload,
   ) {
-    const user = this.getUserFromClient(client);
+    const user = await this.resolveUser(client);
     if (!user) {
       client.emit('serviceChat:error', { message: 'Unauthorized.' });
       return;
@@ -182,6 +190,11 @@ export class ServiceChatGateway {
     }
 
     return null;
+  }
+
+  private async resolveUser(client: Socket): Promise<ServiceChatUser | null> {
+    await client.data?.authReady;
+    return this.getUserFromClient(client);
   }
 
   private getUserFromClient(client: Socket): ServiceChatUser | null {
