@@ -66,7 +66,7 @@ export class UsersService {
     if (pageOptionsDto.roleId) {
       searchedItemsByWord.andWhere('users.roleId = :roleId', { roleId: pageOptionsDto.roleId });
     }
-    if (pageOptionsDto.status) {
+    if (pageOptionsDto.status === 'active' || pageOptionsDto.status === 'inactive') {
       searchedItemsByWord.andWhere('users.isActive = :isActive', { isActive: pageOptionsDto.status === 'active' });
     }
 

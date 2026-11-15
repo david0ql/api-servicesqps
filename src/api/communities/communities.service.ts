@@ -364,7 +364,7 @@ export class CommunitiesService {
       qb.andWhere('communities.isActive = :isActive', { isActive: true });
     } else if (pageOptionsDto.status === 'inactive') {
       qb.andWhere('communities.isActive = :isActive', { isActive: false });
-    } else if (!pageOptionsDto.includeInactive) {
+    } else if (pageOptionsDto.status !== 'all' && !pageOptionsDto.includeInactive) {
       qb.andWhere('communities.isActive = :isActive', { isActive: true });
     }
   }

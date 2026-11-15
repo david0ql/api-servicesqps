@@ -79,7 +79,7 @@ export class RecurringServicesService {
       .leftJoinAndSelect('recurring.type', 'type')
       .leftJoinAndSelect('recurring.status', 'status')
       .leftJoinAndSelect('recurring.user', 'user')
-      .where('recurring.isActive = :isActive', { isActive: pageOptionsDto.status !== 'inactive' })
+      .where(pageOptionsDto.status === 'all' ? '1=1' : 'recurring.isActive = :isActive', { isActive: pageOptionsDto.status !== 'inactive' })
       .andWhere(new Brackets((qb) => {
         qb.where('community.communityName LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
           .orWhere('recurring.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
@@ -104,8 +104,8 @@ export class RecurringServicesService {
       .leftJoinAndSelect('recurring.type', 'type')
       .leftJoinAndSelect('recurring.status', 'status')
       .leftJoinAndSelect('recurring.user', 'user')
-      // Sin status (o active): solo activas, como antes. status=inactive: las pausadas.
-      .where('recurring.isActive = :isActive', { isActive: pageOptionsDto.status !== 'inactive' })
+      // Sin status (o active): solo activas, como antes. inactive: las pausadas. all: todas.
+      .where(pageOptionsDto.status === 'all' ? '1=1' : 'recurring.isActive = :isActive', { isActive: pageOptionsDto.status !== 'inactive' })
       .orderBy('recurring.createdAt', pageOptionsDto.order)
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take);
