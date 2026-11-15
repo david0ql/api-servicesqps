@@ -23,9 +23,9 @@ export class UsersPageOptionsDto extends PageOptionsDto {
 
   @ApiPropertyOptional({
     description: 'Filtrar por estado: active = solo activos, inactive = solo inactivos. Sin valor = todos.',
-    enum: ['active', 'inactive'],
+    enum: ['active', 'inactive', 'all'],
   })
-  @IsIn(['active', 'inactive'])
+  @IsIn(['active', 'inactive', 'all'])
   @IsOptional()
-  readonly status?: 'active' | 'inactive';
+  readonly status?: 'active' | 'inactive' | 'all';
 }

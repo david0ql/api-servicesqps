@@ -109,6 +109,13 @@ describe('UsersService filtro por estado (activo/inactivo)', () => {
     expect(qb.andWhere).toHaveBeenCalledWith('users.isActive = :isActive', { isActive });
   });
 
+  it('status=all no filtra por estado (lista y búsqueda)', async () => {
+    const a = createQueryBuilderMock(); await createService(a.qb).service.findAll(pageOptions({ status: 'all' }));
+    expect(a.qb.andWhere).not.toHaveBeenCalled();
+    const b = createQueryBuilderMock(); await createService(b.qb).service.searchByWord({ searchWord: 'x' } as any, pageOptions({ status: 'all' }));
+    expect(b.qb.andWhere).not.toHaveBeenCalled();
+  });
+
   it('sin status no filtra por estado', async () => {
     const { qb } = createQueryBuilderMock();
     const { service } = createService(qb);
