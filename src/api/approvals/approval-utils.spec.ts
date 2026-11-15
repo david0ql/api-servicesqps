@@ -225,3 +225,9 @@ describe('redactSensitive', () => {
     expect(redactSensitive(null)).toBeNull();
   });
 });
+
+describe('randomApprovalCode con prefijo de tenant', () => {
+  it('usa siempre la letra del tenant', () => {
+    for (let i = 0; i < 50; i++) expect(randomApprovalCode(99, 'v')).toMatch(/^V\d{1,2}$/);
+  });
+});

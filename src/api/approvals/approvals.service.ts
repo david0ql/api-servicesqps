@@ -34,7 +34,7 @@ import { PageDto } from '../../dto/page.dto';
 import { PageMetaDto } from '../../dto/page-meta.dto';
 
 import { buildApprovalSummary, parseResourcePath } from './approval-summary.util';
-import { generateUniqueApprovalCode } from './approval-code.util';
+import { generateUniqueApprovalCode, randomApprovalCode } from './approval-code.util';
 import { ApprovalDecision, parseApprovalReply } from './sms-reply.parser';
 import { samePhone } from './phone.util';
 import { ApprovalExecutorService } from './approval-executor.service';
@@ -120,7 +120,11 @@ export class ApprovalsService {
     const summary = buildApprovalSummary({ method: input.method, path, query, body, target });
 
     const pendingCodes = await this.pendingRepository.find({ where: { status: 'pending' }, select: ['code'] });
-    const code = generateUniqueApprovalCode(new Set(pendingCodes.map((p) => p.code)));
+    const prefix = envVars.APPROVAL_CODE_PREFIX ?? '';
+    const code = generateUniqueApprovalCode(
+      new Set(pendingCodes.map((p) => p.code)),
+      (maxNumber) => randomApprovalCode(maxNumber, prefix),
+    );
 
     const change = await this.pendingRepository.save(this.pendingRepository.create({
       code,
@@ -376,9 +380,19 @@ export class ApprovalsService {
     const shortPending: ShortRequest[] = pending.map((p) => ({ code: p.code, summary: p.summary }));
 
     const parsed = parseApprovalReply(message);
+    // Gateway compartido entre tenants: el mismo SMS llega a todos. Solo contesta
+    // quien tiene algo pendiente y nunca se decide sin código (podría ser de otro tenant).
+    const shared = Boolean(envVars.APPROVAL_SHARED_GATEWAY);
+    const prefix = String(envVars.APPROVAL_CODE_PREFIX ?? '').trim().toUpperCase();
+
     if (!parsed) {
+      if (shared && pending.length === 0) return 'ignored:shared-no-pending';
       await this.sendSms(admin, msgNotUnderstood(shortPending));
       return 'replied:not-understood';
+    }
+
+    if (shared && parsed.code && prefix && !parsed.code.startsWith(prefix)) {
+      return 'ignored:other-tenant';
     }
 
     let targetId: string | null = null;
@@ -399,6 +413,10 @@ export class ApprovalsService {
         await this.sendSms(admin, msgCodeNotFound(parsed.code, shortPending));
         return 'replied:code-not-found';
       }
+    } else if (shared) {
+      if (pending.length === 0) return 'ignored:shared-no-pending';
+      await this.sendSms(admin, msgAmbiguous(shortPending));
+      return 'replied:ambiguous';
     } else if (pending.length === 1) {
       targetId = pending[0].id;
     } else if (pending.length === 0) {
