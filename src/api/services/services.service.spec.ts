@@ -34,6 +34,7 @@ describe('ServicesService checkpoints after refresh', () => {
       {} as any,
       {} as any,
       notifier,
+      { assertServiceAllowed: jest.fn(), assertServiceUpdateAllowed: jest.fn() } as any,
     );
 
     return { service, servicesRepository, notifier };
