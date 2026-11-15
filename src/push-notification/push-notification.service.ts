@@ -25,6 +25,8 @@ export interface PushNotification {
     data?: Record<string, any>;
     sound?: string;
     tokensNotification: TokensNotification;
+    /** Si es true solo se manda el push de Expo; no se envia SMS a nadie (ej. Last News). */
+    skipSms?: boolean;
 }
 
 @Injectable()
@@ -73,6 +75,14 @@ export class PushNotificationsService {
                     this.logger.error('Error sending push notification:', error);
                 }
             }
+        }
+
+        if (pushNotification.skipSms) {
+            return {
+                done: true,
+                smsSent: 0,
+                smsFailed: 0,
+            };
         }
 
         // Handle SMS notifications
