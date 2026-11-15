@@ -12,6 +12,7 @@ import { CommunitiesEntity } from '../../entities/communities.entity';
 import { SearchDto } from '../../dto/search.dto';
 import { PageDto } from '../../dto/page.dto';
 import { ApiPaginatedResponse } from '../../decorators/api-paginated-response.decorator';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 
 @ApiBearerAuth()
@@ -26,7 +27,9 @@ export class CommunitiesController {
     return this.communitiesService.create(createCommunityDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/search')
+  @SkipApproval()
   @ApiPaginatedResponse(CommunitiesEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<CommunitiesEntity>> {

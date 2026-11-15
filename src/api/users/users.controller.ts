@@ -14,6 +14,7 @@ import { UsersEntity } from 'src/entities/users.entity';
 import { PageOptionsDto } from 'src/dto/page-options.dto';
 import { UsersPageOptionsDto } from './dto/users-page-options.dto';
 import { SearchDto } from 'src/dto/search.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 @ApiBearerAuth()
 @ApiTags('users')
@@ -27,7 +28,9 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/search')
+  @SkipApproval()
   @ApiPaginatedResponse(UsersEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<UsersEntity>> {

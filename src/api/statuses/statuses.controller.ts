@@ -13,6 +13,7 @@ import { StatusesService } from './statuses.service';
 
 import { StatusesEntity } from 'src/entities/statuses.entity';
 import { SearchDto } from 'src/dto/search.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 @ApiBearerAuth()
 @ApiTags('statuses')
@@ -26,7 +27,9 @@ export class StatusesController {
     return this.statusesService.create(createStatusDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/search')
+  @SkipApproval()
   @ApiPaginatedResponse(StatusesEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<StatusesEntity>> {

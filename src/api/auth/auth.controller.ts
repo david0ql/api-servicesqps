@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { AuthService } from './auth.service';
 import { UserDto } from './dto/user.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -14,7 +15,9 @@ export class AuthController {
     private readonly authService: AuthService,
   ) { }
 
+  // Login: sin usuario aún.
   @Post()
+  @SkipApproval()
   @HttpCode(200)
   @ApiOkResponse({ description: 'Auth success' })
   @ApiBadRequestResponse({ description: 'Bad request - Validation errors' })
