@@ -75,12 +75,14 @@ export class ServicesService {
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
-      .where('services.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.comment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.userComment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.unitySize LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('services.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+      .andWhere(new Brackets((qb) => {
+        qb.where('services.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.comment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.userComment LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.unitySize LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('services.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      }))
 
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount()
 
@@ -117,7 +119,7 @@ export class ServicesService {
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
-      .where('services.communityId IN (:...communityIds)', { communityIds })
+      .andWhere('services.communityId IN (:...communityIds)', { communityIds })
       .andWhere(new Brackets((qb) => {
         qb.where('services.date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
           .orWhere('services.schedule LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
@@ -196,7 +198,7 @@ export class ServicesService {
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
-      .where('services.statusId = :statusID', { statusID })
+      .andWhere('services.statusId = :statusID', { statusID })
 
     const [items, totalCount] = await queryBuilder.getManyAndCount()
 
@@ -220,7 +222,7 @@ export class ServicesService {
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
-      .where('services.statusId = :statusID', { statusID })
+      .andWhere('services.statusId = :statusID', { statusID })
       .andWhere('services.userId = :userID', { userID })
 
     const [items, totalCount] = await queryBuilder.getManyAndCount()
@@ -258,7 +260,7 @@ export class ServicesService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra');
     this.addActiveRecurringFilter(queryBuilder);
     queryBuilder
-      .where('services.userId = :userId', { userId })
+      .andWhere('services.userId = :userId', { userId })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
@@ -283,7 +285,7 @@ export class ServicesService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra');
     this.addActiveRecurringFilter(queryBuilder);
     queryBuilder
-      .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
+      .andWhere('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take);
@@ -335,7 +337,7 @@ export class ServicesService {
       .leftJoinAndSelect('extrasByServices.extra', 'extra');
     this.addActiveRecurringFilter(queryBuilder);
     queryBuilder
-      .where('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
+      .andWhere('services.communityId IN (:...communities)', { communities: servicesByManagerDto.communities })
       .andWhere('services.statusId = :statusID', { statusID })
       .orderBy('services.createdAt', 'DESC')
       .skip(pageOptionsDto.skip)
@@ -359,7 +361,7 @@ export class ServicesService {
       .leftJoinAndSelect('services.user', 'user')
       .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
       .leftJoinAndSelect('extrasByServices.extra', 'extra')
-      .where('services.userId = :userId', { userId })
+      .andWhere('services.userId = :userId', { userId })
       .andWhere('services.date BETWEEN :startOfWeek AND :endOfWeek', { startOfWeek, endOfWeek })
 
     return queryBuilder.getMany();
