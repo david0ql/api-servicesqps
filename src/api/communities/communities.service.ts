@@ -11,6 +11,7 @@ import { SearchDto } from '../../dto/search.dto';
 import { PageOptionsDto } from '../../dto/page-options.dto';
 import { PageDto } from '../../dto/page.dto';
 import { PageMetaDto } from '../../dto/page-meta.dto';
+import { normalizeCommunityContacts } from './community-contacts.util';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
 
 @Injectable()
@@ -57,7 +58,7 @@ export class CommunitiesService {
 
   async create(createCommunityDto: CreateCommunityDto) {
     const community = this.communitiesRepository.create(
-      this.conFechaDeVendedor(this.conCoordenadas(createCommunityDto)) as any,
+      this.conFechaDeVendedor(this.conCoordenadas(normalizeCommunityContacts(createCommunityDto))) as any,
     );
 
     await this.communitiesRepository.save(community);
@@ -86,6 +87,13 @@ export class CommunitiesService {
         'communities.vendorCommissionRate',
         'communities.latitude',
         'communities.longitude',
+        'communities.maintenanceSupervisorName',
+        'communities.maintenanceSupervisorPhone',
+        'communities.technicianName',
+        'communities.technicianPhone',
+        'communities.managerContactName',
+        'communities.managerContactPhone',
+        'communities.showContactsInApp',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -154,6 +162,13 @@ export class CommunitiesService {
         'communities.vendorCommissionRate',
         'communities.latitude',
         'communities.longitude',
+        'communities.maintenanceSupervisorName',
+        'communities.maintenanceSupervisorPhone',
+        'communities.technicianName',
+        'communities.technicianPhone',
+        'communities.managerContactName',
+        'communities.managerContactPhone',
+        'communities.showContactsInApp',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -209,6 +224,13 @@ export class CommunitiesService {
         'communities.vendorCommissionRate',
         'communities.latitude',
         'communities.longitude',
+        'communities.maintenanceSupervisorName',
+        'communities.maintenanceSupervisorPhone',
+        'communities.technicianName',
+        'communities.technicianPhone',
+        'communities.managerContactName',
+        'communities.managerContactPhone',
+        'communities.showContactsInApp',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -257,6 +279,13 @@ export class CommunitiesService {
         'communities.vendorCommissionRate',
         'communities.latitude',
         'communities.longitude',
+        'communities.maintenanceSupervisorName',
+        'communities.maintenanceSupervisorPhone',
+        'communities.technicianName',
+        'communities.technicianPhone',
+        'communities.managerContactName',
+        'communities.managerContactPhone',
+        'communities.showContactsInApp',
         'communities.createdAt',
         'communities.updatedAt',
         'supervisorUser.id',
@@ -293,7 +322,7 @@ export class CommunitiesService {
 
     const community = await this.communitiesRepository.preload({
       id,
-      ...this.conFechaDeVendedor(this.conCoordenadas(updateCommunityDto), anterior),
+      ...this.conFechaDeVendedor(this.conCoordenadas(normalizeCommunityContacts(updateCommunityDto)), anterior),
     } as any);
 
     if (!community) {

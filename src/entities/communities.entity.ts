@@ -54,6 +54,30 @@ export class CommunitiesEntity {
   @Column("decimal", { name: "longitude", precision: 10, scale: 7, nullable: true })
   longitude: string | null;
 
+  // Contactos del complex (supervisor de mantenimiento, tecnico y manager).
+  // Son datos libres (no usuarios del sistema): el cleaner los ve en la app
+  // para llamar desde el servicio, solo si showContactsInApp esta activo.
+  @Column("varchar", { name: "maintenance_supervisor_name", length: 120, nullable: true })
+  maintenanceSupervisorName: string | null;
+
+  @Column("varchar", { name: "maintenance_supervisor_phone", length: 30, nullable: true })
+  maintenanceSupervisorPhone: string | null;
+
+  @Column("varchar", { name: "technician_name", length: 120, nullable: true })
+  technicianName: string | null;
+
+  @Column("varchar", { name: "technician_phone", length: 30, nullable: true })
+  technicianPhone: string | null;
+
+  @Column("varchar", { name: "manager_contact_name", length: 120, nullable: true })
+  managerContactName: string | null;
+
+  @Column("varchar", { name: "manager_contact_phone", length: 30, nullable: true })
+  managerContactPhone: string | null;
+
+  @Column("boolean", { name: "show_contacts_in_app", default: false })
+  showContactsInApp: boolean;
+
   @Column("bigint", {
     name: "supervisor_user_id",
     unsigned: true,
