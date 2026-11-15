@@ -33,6 +33,7 @@ import { NewsEntity } from '../../entities/news.entity';
 import { CreateNewsDto } from './dto/create-news.dto';
 import { UpdateNewsDto } from './dto/update-news.dto';
 import { isNewsAdmin, NewsService } from './news.service';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
 const NEWS_UPLOAD_DIR = join(process.cwd(), 'uploads', 'news');
@@ -68,6 +69,8 @@ export class NewsController {
     return this.newsService.findUnreadForUser(req.user.user);
   }
 
+  // Marcar como leida no es un cambio de datos del negocio: sin aprobacion.
+  @SkipApproval()
   @Post(':id/accept')
   @UseGuards(AuthGuard('jwt'))
   accept(@Param('id') id: string, @Request() req: any) {
@@ -83,6 +86,8 @@ export class NewsController {
     return this.newsService.findAllAdmin(pageOptionsDto, req.user.user);
   }
 
+  // Lectura via POST: sin aprobacion.
+  @SkipApproval()
   @Post('search')
   @ApiPaginatedResponse(NewsEntity)
   @UseGuards(AuthGuard('jwt'))
@@ -90,6 +95,8 @@ export class NewsController {
     return this.newsService.searchAdmin(searchDto, pageOptionsDto, req.user.user);
   }
 
+  // Subir la imagen no publica nada; crear/editar la noticia si pasa por aprobacion.
+  @SkipApproval()
   @Post('upload-image')
   @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(

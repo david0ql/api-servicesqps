@@ -11,6 +11,7 @@ import { RecurringCostsEntity } from 'src/entities/recurring_costs.entity';
 import { RecurringCostsService } from './recurring-costs.service';
 import { CreateRecurringCostDto } from './dto/create-recurring-cost.dto';
 import { UpdateRecurringCostDto } from './dto/update-recurring-cost.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 @ApiBearerAuth()
 @ApiTags('recurring-costs')
@@ -24,7 +25,9 @@ export class RecurringCostsController {
     return this.recurringCostsService.create(createRecurringCostDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/search')
+  @SkipApproval()
   @ApiPaginatedResponse(RecurringCostsEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWord(

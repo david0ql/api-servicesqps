@@ -22,6 +22,7 @@ import { ReviewsModule } from './api/reviews/reviews.module';
 import { ServiceChatModule } from './api/service-chat/service-chat.module';
 import { CommunityBlackoutsModule } from './api/community-blackouts/community-blackouts.module';
 import { NewsModule } from './api/news/news.module';
+import { ApprovalsModule } from './api/approvals/approvals.module';
 
 import envVars from './config/env';
 
@@ -64,6 +65,7 @@ import envVars from './config/env';
     ServiceChatModule,
     CommunityBlackoutsModule,
     NewsModule,
+    ApprovalsModule,
   ],
   controllers: [],
   providers: [],

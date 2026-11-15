@@ -13,6 +13,7 @@ import { CompaniesService } from './companies.service';
 
 import { CompaniesEntity } from 'src/entities/companies.entity';
 import { SearchDto } from 'src/dto/search.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 @ApiBearerAuth()
 @ApiTags('companies')
@@ -26,7 +27,9 @@ export class CompaniesController {
     return this.companiesService.create(createCompanyDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/search')
+  @SkipApproval()
   @ApiPaginatedResponse(CompaniesEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<CompaniesEntity>> {

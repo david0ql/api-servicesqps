@@ -13,6 +13,7 @@ import { ExtrasService } from './extras.service';
 
 import { ExtrasEntity } from 'src/entities/extras.entity';
 import { SearchDto } from 'src/dto/search.dto';
+import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
 @ApiBearerAuth()
 @ApiTags('extras')
@@ -26,7 +27,9 @@ export class ExtrasController {
     return this.extrasService.create(createExtraDto);
   }
 
+  // Lectura: no modifica datos.
   @Post('/search')
+  @SkipApproval()
   @ApiPaginatedResponse(ExtrasEntity)
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<ExtrasEntity>> {

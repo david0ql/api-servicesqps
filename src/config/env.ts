@@ -18,6 +18,14 @@ interface EnvVars {
     ENABLE_SMS: boolean
     REPORTS_PUBLIC_BASE_URL: string
     TENANT_ID: string
+    TEXTBEE_WEBHOOK_SECRET: string
+    APPROVAL_SMS_ENABLED: boolean
+    APPROVAL_EXPIRATION_HOURS: number
+    APPROVAL_REPLAY_BASE_URL: string
+    ADMIN_PAPEL_EMAIL: string
+    ADMIN_PAPEL_PASSWORD: string
+    ADMIN_PAPEL_NAME: string
+    ADMIN_PAPEL_PHONE: string
 }
 
 const envSchema = joi
@@ -37,6 +45,19 @@ const envSchema = joi
     ENABLE_SMS: joi.boolean().default(false),
     REPORTS_PUBLIC_BASE_URL: joi.string().default('http://localhost:3000'),
     TENANT_ID: joi.string().default('main'),
+    // Aprobaciones del rol Admin Papel (9). Todas opcionales.
+    // Secreto de firma del webhook de TextBee (MESSAGE_RECEIVED). Vacío = webhook deshabilitado.
+    TEXTBEE_WEBHOOK_SECRET: joi.string().allow('').default(''),
+    // SMS de aprobación. Por defecto sigue a ENABLE_NOTIFICATIONS.
+    APPROVAL_SMS_ENABLED: joi.boolean().empty('').default(joi.ref('ENABLE_NOTIFICATIONS')),
+    APPROVAL_EXPIRATION_HOURS: joi.number().min(1).empty('').default(48),
+    // Base para re-ejecutar la solicitud aprobada contra el propio API. Vacío = http://127.0.0.1:${PORT}
+    APPROVAL_REPLAY_BASE_URL: joi.string().allow('').default(''),
+    // Seed idempotente del usuario Admin Papel (solo se crea si vienen email y password).
+    ADMIN_PAPEL_EMAIL: joi.string().allow('').default(''),
+    ADMIN_PAPEL_PASSWORD: joi.string().allow('').default(''),
+    ADMIN_PAPEL_NAME: joi.string().empty('').default('Administrador Papel'),
+    ADMIN_PAPEL_PHONE: joi.string().allow('').default(''),
   })
   .unknown(true)
   .required();
