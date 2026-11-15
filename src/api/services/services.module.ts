@@ -10,6 +10,7 @@ import { UsersEntity } from '../../entities/users.entity';
 import { NotificationsModule } from '../../push-notification/push-notification.module';
 import { CommunitiesEntity } from '../../entities/communities.entity';
 import { ServiceAssignmentReminderService } from './service-assignment-reminder.service';
+import { CommunityBlackoutsModule } from '../community-blackouts/community-blackouts.module';
 
 @Module({
   controllers: [ServicesController],
@@ -18,6 +19,7 @@ import { ServiceAssignmentReminderService } from './service-assignment-reminder.
   imports: [
     TypeOrmModule.forFeature([ServicesEntity, ExtrasByServiceEntity, UsersEntity, CommunitiesEntity]),
     NotificationsModule,
+    CommunityBlackoutsModule,
   ],
 
 })

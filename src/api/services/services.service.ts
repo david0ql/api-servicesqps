@@ -20,6 +20,7 @@ import { ServiceStatusId } from '../../constants/service-status.enum';
 import { TrackServiceLocationDto } from './dto/track-service-location.dto';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 import { EventoServicio, ServiceNotifierService } from './service-notifier.service';
+import { CommunityBlackoutsService } from '../community-blackouts/community-blackouts.service';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -51,6 +52,7 @@ export class ServicesService {
     private readonly communitiesRepository: Repository<CommunitiesEntity>,
     private readonly pushNotificationsService: PushNotificationsService,
     private readonly notifier: ServiceNotifierService,
+    private readonly blackouts: CommunityBlackoutsService,
   ) { }
 
   private addActiveRecurringFilter(queryBuilder: any) {
@@ -522,6 +524,9 @@ export class ServicesService {
   ) {
     const { extraId, ...createServiceDtoCopy } = createServiceDto;
 
+    // Dias/horarios fuera de servicio de la comunidad (festividades): 400.
+    await this.blackouts.assertServiceAllowed(createServiceDto);
+
     if (createServiceDto.userId) {
       await this.assertAssignableUser(createServiceDto.userId);
     }
@@ -608,6 +613,9 @@ export class ServicesService {
     if (updateServiceDto.userId) {
       await this.assertAssignableUser(updateServiceDto.userId);
     }
+
+    // Solo valida si se mueve el servicio (fecha, hora o comunidad).
+    await this.blackouts.assertServiceUpdateAllowed(id, updateServiceDto);
 
     const nextUserId = typeof updateServiceDto.userId !== 'undefined'
       ? updateServiceDto.userId
