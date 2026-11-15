@@ -123,6 +123,25 @@ export class ServicesEntity {
   @Column("text", { name: "finish_location_meta", nullable: true })
   finishLocationMeta: string | null;
 
+  // Refresh: cuando la QA marca items fallidos el servicio vuelve a Approved y
+  // se limpian started/finished para que la cleaner lo pueda repetir. Lo que
+  // hizo antes queda en estas columnas (ultimo intento) y en refresh_history
+  // (todos los intentos, JSON).
+  @Column("int", { name: "refresh_count", default: () => "0" })
+  refreshCount: number;
+
+  @Column("timestamp", { name: "last_refreshed_at", nullable: true })
+  lastRefreshedAt: Date | null;
+
+  @Column("timestamp", { name: "last_started_at", nullable: true })
+  lastStartedAt: Date | null;
+
+  @Column("timestamp", { name: "last_finished_at", nullable: true })
+  lastFinishedAt: Date | null;
+
+  @Column("text", { name: "refresh_history", nullable: true })
+  refreshHistory: string | null;
+
   @Column("bigint", { name: "qa_user_id", unsigned: true, nullable: true })
   qaUserId: string | null;
 
