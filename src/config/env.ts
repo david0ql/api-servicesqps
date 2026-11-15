@@ -22,6 +22,8 @@ interface EnvVars {
     APPROVAL_SMS_ENABLED: boolean
     APPROVAL_EXPIRATION_HOURS: number
     APPROVAL_REPLAY_BASE_URL: string
+    APPROVAL_CODE_PREFIX: string
+    APPROVAL_SHARED_GATEWAY: boolean
     ADMIN_PAPEL_EMAIL: string
     ADMIN_PAPEL_PASSWORD: string
     ADMIN_PAPEL_NAME: string
@@ -53,6 +55,12 @@ const envSchema = joi
     APPROVAL_EXPIRATION_HOURS: joi.number().min(1).empty('').default(48),
     // Base para re-ejecutar la solicitud aprobada contra el propio API. Vacío = http://127.0.0.1:${PORT}
     APPROVAL_REPLAY_BASE_URL: joi.string().allow('').default(''),
+    // Letra fija para los códigos de este tenant (ej. Q = servicesqps, V = ventpros).
+    // Vacío = letra aleatoria. Necesaria cuando varios tenants comparten el mismo TextBee.
+    APPROVAL_CODE_PREFIX: joi.string().allow('').pattern(/^[A-Za-z]?$/).default(''),
+    // true = el mismo número de TextBee (y su webhook) lo comparten varios tenants:
+    // las respuestas sin código o con código de otro tenant se ignoran sin contestar.
+    APPROVAL_SHARED_GATEWAY: joi.boolean().empty('').default(false),
     // Seed idempotente del usuario Admin Papel (solo se crea si vienen email y password).
     ADMIN_PAPEL_EMAIL: joi.string().allow('').default(''),
     ADMIN_PAPEL_PASSWORD: joi.string().allow('').default(''),

@@ -5,9 +5,11 @@ const LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ';
 
 export const APPROVAL_CODE_PATTERN = /^[A-Z]\d{1,4}$/;
 
-/** Código corto letra + número (ej. "A12"). `maxNumber` crece si hay choques. */
-export const randomApprovalCode = (maxNumber = 99): string => {
-  const letter = LETTERS[randomInt(LETTERS.length)];
+/** Código corto letra + número (ej. "A12"). `maxNumber` crece si hay choques.
+ *  Con `prefix` la letra es fija (una por tenant) para distinguirlos por SMS. */
+export const randomApprovalCode = (maxNumber = 99, prefix = ''): string => {
+  const fixed = prefix.trim().toUpperCase();
+  const letter = fixed || LETTERS[randomInt(LETTERS.length)];
   const number = randomInt(1, maxNumber + 1);
   return `${letter}${number}`;
 };

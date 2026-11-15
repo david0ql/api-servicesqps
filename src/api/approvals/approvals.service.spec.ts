@@ -8,6 +8,7 @@ jest.mock('../../entities/costs.entity', () => ({ CostsEntity: class CostsEntity
 jest.mock('../../entities/recurring_costs.entity', () => ({ RecurringCostsEntity: class RecurringCostsEntity {} }));
 jest.mock('../../dto/page-meta.dto', () => ({ PageMetaDto: class PageMetaDto {} }));
 
+import envVars from '../../config/env';
 import { ApprovalsService, hashApprovalToken } from './approvals.service';
 
 type Row = Record<string, any>;
@@ -272,6 +273,42 @@ describe('ApprovalsService', () => {
       const { service, smsTo } = setup([pendingRow()]);
       expect(await service.handleInboundSms('7865552222', 'SI Z99')).toBe('replied:code-not-found');
       expect(smsTo(ana.phoneNumber)[0]).toContain('No encontré la solicitud Z99');
+    });
+  });
+
+  describe('handleInboundSms con gateway compartido entre tenants', () => {
+    const env = envVars as any;
+    beforeEach(() => { env.APPROVAL_SHARED_GATEWAY = true; env.APPROVAL_CODE_PREFIX = 'Q'; });
+    afterEach(() => { delete env.APPROVAL_SHARED_GATEWAY; delete env.APPROVAL_CODE_PREFIX; });
+
+    it('ignora sin contestar los códigos de otro tenant', async () => {
+      const rows = [pendingRow({ code: 'Q12' })];
+      const { service, textBee } = setup(rows);
+      expect(await service.handleInboundSms('7865552222', 'SI V7')).toBe('ignored:other-tenant');
+      expect(textBee.sendSMS).not.toHaveBeenCalled();
+      expect(rows[0].status).toBe('pending');
+    });
+
+    it('sin código nunca decide, aunque haya una sola pendiente', async () => {
+      const rows = [pendingRow({ code: 'Q12' })];
+      const { service, smsTo } = setup(rows);
+      expect(await service.handleInboundSms('7865552222', 'SI')).toBe('replied:ambiguous');
+      expect(smsTo(ana.phoneNumber)[0]).toContain('Q12');
+      expect(rows[0].status).toBe('pending');
+    });
+
+    it('sin pendientes en este tenant: silencio', async () => {
+      const { service, textBee } = setup([]);
+      expect(await service.handleInboundSms('7865552222', 'SI')).toBe('ignored:shared-no-pending');
+      expect(await service.handleInboundSms('7865552222', 'hola')).toBe('ignored:shared-no-pending');
+      expect(textBee.sendSMS).not.toHaveBeenCalled();
+    });
+
+    it('con código propio decide normal', async () => {
+      const rows = [pendingRow({ code: 'Q12' })];
+      const { service } = setup(rows);
+      expect(await service.handleInboundSms('7865552222', 'no q12 falta la fecha')).toBe('decided:rejected');
+      expect(rows[0]).toMatchObject({ status: 'rejected', comment: 'falta la fecha' });
     });
   });
 
