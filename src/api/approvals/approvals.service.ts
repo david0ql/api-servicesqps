@@ -8,7 +8,7 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'crypto';
-import { DataSource, LessThan, Repository } from 'typeorm';
+import { DataSource, EntityTarget, LessThan, Repository } from 'typeorm';
 import { Expo } from 'expo-server-sdk';
 
 import envVars from '../../config/env';
@@ -72,7 +72,7 @@ export interface DecisionOutcome {
 const MAX_RESULT_BODY = 20_000;
 
 /** Entidad a consultar para describir el recurso afectado en el resumen. */
-const RESOURCE_ENTITIES: Record<string, { entity: Function; relations?: string[] }> = {
+const RESOURCE_ENTITIES: Record<string, { entity: EntityTarget<any>; relations?: string[] }> = {
   services: { entity: ServicesEntity, relations: ['community'] },
   'recurring-services': { entity: RecurringServicesEntity, relations: ['community'] },
   communities: { entity: CommunitiesEntity },
@@ -116,7 +116,7 @@ export class ApprovalsService {
     const [path, queryString] = input.url.split('?');
     const query = Object.fromEntries(new URLSearchParams(queryString ?? ''));
     const body = (input.body && typeof input.body === 'object' ? input.body : null) as Record<string, any> | null;
-    const target = await this.loadSummaryTarget(input.method, path, body, query);
+    const target = await this.loadSummaryTarget(input.method, path, body);
     const summary = buildApprovalSummary({ method: input.method, path, query, body, target });
 
     const pendingCodes = await this.pendingRepository.find({ where: { status: 'pending' }, select: ['code'] });
@@ -145,7 +145,6 @@ export class ApprovalsService {
     method: string,
     path: string,
     body: Record<string, any> | null,
-    query: Record<string, string>,
   ): Promise<Record<string, any> | null> {
     try {
       const { resource, id, segments } = parseResourcePath(path);
