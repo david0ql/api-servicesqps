@@ -375,7 +375,7 @@ export class ServicesService {
   async trackServiceStart(id: string, payload: TrackServiceLocationDto, currentUser: UsersEntity) {
     const service = await this.servicesRepository.findOne({
       where: { id },
-      select: ['id', 'userId', 'statusId', 'date', 'startedAt', 'finishedAt'],
+      select: ['id', 'userId', 'statusId', 'date', 'startedAt', 'finishedAt', 'refreshCount'],
     });
 
     if (!service) {
@@ -383,7 +383,7 @@ export class ServicesService {
     }
 
     this.assertTrackingPermissions(service, currentUser);
-    this.assertServiceDateForStart(service.date);
+    this.assertServiceDateForStart(service.date, Number(service.refreshCount) > 0);
 
     if (service.startedAt) {
       throw new BadRequestException('Service start has already been marked.');
@@ -813,9 +813,21 @@ export class ServicesService {
     }
   }
 
-  private assertServiceDateForStart(serviceDate: string) {
+  /**
+   * Un servicio normal solo se inicia el dia programado. Un refresh (la QA lo
+   * devolvio) puede llegar el mismo dia o despues, asi que se permite iniciarlo
+   * desde la fecha programada en adelante, nunca antes.
+   */
+  private assertServiceDateForStart(serviceDate: string, isRefresh = false) {
     const today = moment().format('YYYY-MM-DD');
     const scheduledDate = moment(serviceDate).format('YYYY-MM-DD');
+
+    if (isRefresh) {
+      if (today < scheduledDate) {
+        throw new BadRequestException('Service can only be started on or after its scheduled date.');
+      }
+      return;
+    }
 
     if (today !== scheduledDate) {
       throw new BadRequestException('Service can only be started on its scheduled date.');

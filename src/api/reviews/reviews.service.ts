@@ -12,6 +12,7 @@ import { CreateServiceReviewDto } from './dto/create-service-review.dto';
 import { TrackServiceLocationDto } from '../services/dto/track-service-location.dto';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
 import { ServiceNotifierService } from '../services/service-notifier.service';
+import { buildRefreshResetUpdate, shouldResetForRefresh } from '../services/service-refresh.util';
 
 @Injectable()
 export class ReviewsService {
@@ -141,6 +142,12 @@ export class ReviewsService {
       statusId: hasFailedItems ? '3' : '6',
       qaFlagged: false,
     };
+
+    // Refresh: se guarda el intento anterior y se limpian inicio/fin para que
+    // la cleaner pueda volver a iniciar y finalizar el servicio.
+    if (hasFailedItems && shouldResetForRefresh(service)) {
+      Object.assign(serviceUpdate, buildRefreshResetUpdate(service, new Date(), currentUser?.id ?? null));
+    }
 
     if (createServiceReviewDto.latitude != null && createServiceReviewDto.longitude != null) {
       serviceUpdate.qaFinishedAt = new Date();
