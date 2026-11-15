@@ -23,6 +23,7 @@ interface EnvVars {
     APPROVAL_EXPIRATION_HOURS: number
     APPROVAL_REPLAY_BASE_URL: string
     APPROVAL_CODE_PREFIX: string
+    APPROVAL_LINK_BASE_URL: string
     APPROVAL_SHARED_GATEWAY: boolean
     ADMIN_PAPEL_EMAIL: string
     ADMIN_PAPEL_PASSWORD: string
@@ -52,11 +53,14 @@ const envSchema = joi
     TEXTBEE_WEBHOOK_SECRET: joi.string().allow('').default(''),
     // SMS de aprobación. Por defecto sigue a ENABLE_NOTIFICATIONS.
     APPROVAL_SMS_ENABLED: joi.boolean().empty('').default(joi.ref('ENABLE_NOTIFICATIONS')),
-    APPROVAL_EXPIRATION_HOURS: joi.number().min(1).empty('').default(48),
+    // 0 = las solicitudes pendientes no vencen.
+    APPROVAL_EXPIRATION_HOURS: joi.number().min(0).empty('').default(48),
     // Base para re-ejecutar la solicitud aprobada contra el propio API. Vacío = http://127.0.0.1:${PORT}
     APPROVAL_REPLAY_BASE_URL: joi.string().allow('').default(''),
     // Letra fija para los códigos de este tenant (ej. Q = servicesqps, V = ventpros).
     // Vacío = letra aleatoria. Necesaria cuando varios tenants comparten el mismo TextBee.
+    // Web donde se abre el enlace de aprobación del SMS (ej. https://web.servicesqps.com). Vacío = sin enlace.
+    APPROVAL_LINK_BASE_URL: joi.string().allow('').default(''),
     APPROVAL_CODE_PREFIX: joi.string().allow('').pattern(/^[A-Za-z]?$/).default(''),
     // true = el mismo número de TextBee (y su webhook) lo comparten varios tenants:
     // las respuestas sin código o con código de otro tenant se ignoran sin contestar.

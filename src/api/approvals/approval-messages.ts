@@ -19,6 +19,16 @@ const shortSummary = (summary: string, max = 60) => (summary.length > max ? `${s
 export const listCodes = (pending: ShortRequest[]) =>
   pending.map((p) => `${p.code} (${shortSummary(p.summary, 40)})`).join(', ');
 
+/** SMS con enlace para aprobar/rechazar desde el navegador (no depende de responder por SMS). */
+export const msgNewRequestWithLink = (requesterName: string | null | undefined, req: ShortRequest, url: string) =>
+  `QPS: ${requesterLabel(requesterName)} quiere ${req.summary}. `
+  + `Aprobar o rechazar: ${url} (o responde SI ${req.code} / NO ${req.code}).`;
+
+/** Recordatorio: el Admin Papel reenvía una solicitud que sigue pendiente. */
+export const msgReminder = (requesterName: string | null | undefined, req: ShortRequest, url?: string | null) =>
+  `QPS (recordatorio): ${requesterLabel(requesterName)} sigue esperando: ${req.summary}. `
+  + (url ? `Aprobar o rechazar: ${url} (o responde SI ${req.code} / NO ${req.code}).` : `Responde SI ${req.code} o NO ${req.code} <comentario>.`);
+
 export const msgNewRequest = (requesterName: string | null | undefined, req: ShortRequest) =>
   `QPS: ${requesterLabel(requesterName)} quiere ${req.summary}. `
   + `Responde SI ${req.code} para aprobar o NO ${req.code} <comentario> para rechazar.`;

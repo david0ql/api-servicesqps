@@ -1,3 +1,4 @@
+import { ApprovalLinksEntity } from '../../entities/approval_links.entity';
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -21,7 +22,7 @@ import { AdminPapelSeed } from './admin-papel.seed';
     AuthModule,
     TextBeeModule,
     NotificationsModule,
-    TypeOrmModule.forFeature([PendingChangesEntity, UsersEntity, RolesEntity]),
+    TypeOrmModule.forFeature([PendingChangesEntity, UsersEntity, RolesEntity, ApprovalLinksEntity]),
   ],
   controllers: [ApprovalsController, TextBeeWebhookController],
   providers: [
