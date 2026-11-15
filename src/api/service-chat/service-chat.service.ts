@@ -118,7 +118,11 @@ export class ServiceChatService {
       .select(['message'])
       .addSelect(['user.id', 'user.name', 'user.roleId'])
       .where('message.serviceId = :serviceId', { serviceId })
-      .orderBy('message.createdAt', 'ASC')
+      // Siempre DESC (mas reciente primero). createdAt tiene precision de
+      // segundos, asi que el id (autoincremental) desempata mensajes del mismo
+      // segundo y garantiza un orden estable.
+      .orderBy('message.createdAt', 'DESC')
+      .addOrderBy('message.id', 'DESC')
       .getMany();
 
     return {
@@ -319,8 +323,10 @@ export class ServiceChatService {
       .addSelect('message.attachmentPath', 'lastMessageAttachmentPath')
       .addSelect('message.createdAt', 'lastMessageCreatedAt')
       .orderBy('message.createdAt', 'DESC')
-      .skip(pageOptionsDto.skip)
-      .take(pageOptionsDto.take)
+      .addOrderBy('message.id', 'DESC')
+      // getRawMany ignora skip/take; offset/limit si se aplican al SQL.
+      .offset(pageOptionsDto.skip)
+      .limit(pageOptionsDto.take)
       .setParameters(lastMessageSubQuery.getParameters())
       .getRawMany<{
         serviceId: string;
