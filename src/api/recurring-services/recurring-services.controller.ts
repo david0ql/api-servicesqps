@@ -5,7 +5,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { RecurringServicesService } from './recurring-services.service';
 import { CreateRecurringServiceDto } from './dto/create-recurring-service.dto';
 import { UpdateRecurringServiceDto } from './dto/update-recurring-service.dto';
-import { PageOptionsDto } from 'src/dto/page-options.dto';
+import { StatusPageOptionsDto } from '../../dto/status-page-options.dto';
 import { SearchDto } from 'src/dto/search.dto';
 import { SkipApproval } from '../../decorators/skip-approval.decorator';
 
@@ -25,13 +25,13 @@ export class RecurringServicesController {
   @Post('/search')
   @SkipApproval()
   @UseGuards(AuthGuard('jwt'))
-  searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto) {
+  searchByWord(@Query() pageOptionsDto: StatusPageOptionsDto, @Body() searchDto: SearchDto) {
     return this.recurringServicesService.searchByWord(searchDto, pageOptionsDto);
   }
 
   @Get()
   @UseGuards(AuthGuard('jwt'))
-  findAll(@Query() pageOptionsDto: PageOptionsDto) {
+  findAll(@Query() pageOptionsDto: StatusPageOptionsDto) {
     return this.recurringServicesService.findAll(pageOptionsDto);
   }
 

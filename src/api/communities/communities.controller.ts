@@ -7,7 +7,7 @@ import { CreateCommunityDto } from './dto/create-community.dto';
 import { UpdateCommunityDto } from './dto/update-community.dto';
 
 import { CommunitiesService } from './communities.service';
-import { PageOptionsDto } from '../../dto/page-options.dto';
+import { CommunitiesPageOptionsDto } from './dto/communities-page-options.dto';
 import { CommunitiesEntity } from '../../entities/communities.entity';
 import { SearchDto } from '../../dto/search.dto';
 import { PageDto } from '../../dto/page.dto';
@@ -32,14 +32,14 @@ export class CommunitiesController {
   @SkipApproval()
   @ApiPaginatedResponse(CommunitiesEntity)
   @UseGuards(AuthGuard('jwt'))
-  searchByWord(@Query() pageOptionsDto: PageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<CommunitiesEntity>> {
+  searchByWord(@Query() pageOptionsDto: CommunitiesPageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<CommunitiesEntity>> {
     return this.communitiesService.searchByWord(searchDto, pageOptionsDto);
   }
 
   @Get()
   @ApiPaginatedResponse(CommunitiesEntity)
   @UseGuards(AuthGuard('jwt'))
-  findAll(@Query() pageOptionsDto: PageOptionsDto): Promise<PageDto<CommunitiesEntity>> {
+  findAll(@Query() pageOptionsDto: CommunitiesPageOptionsDto): Promise<PageDto<CommunitiesEntity>> {
     return this.communitiesService.findAll(pageOptionsDto);
   }
 

@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Brackets } from 'typeorm';
 
-import { PageOptionsDto } from 'src/dto/page-options.dto';
+import { StatusPageOptionsDto } from '../../dto/status-page-options.dto';
 import { PageMetaDto } from 'src/dto/page-meta.dto';
 import { PageDto } from 'src/dto/page.dto';
 import { SearchDto } from 'src/dto/search.dto';
@@ -29,16 +29,19 @@ export class RecurringCostsService {
     return recurringCost;
   }
 
-  async searchByWord(searchDto: SearchDto, pageOptionsDto: PageOptionsDto): Promise<PageDto<RecurringCostsEntity>> {
+  async searchByWord(searchDto: SearchDto, pageOptionsDto: StatusPageOptionsDto): Promise<PageDto<RecurringCostsEntity>> {
     const query = this.recurringCostsRepository.createQueryBuilder('recurring_costs')
       .orderBy('recurring_costs.createdAt', pageOptionsDto.order)
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take)
-      .where('recurring_costs.description LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('recurring_costs.amount LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('recurring_costs.category LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('recurring_costs.start_date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
-      .orWhere('recurring_costs.end_date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      .where(new Brackets((qb) => {
+        qb.where('recurring_costs.description LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('recurring_costs.amount LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('recurring_costs.category LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('recurring_costs.start_date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
+          .orWhere('recurring_costs.end_date LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` });
+      }));
+    this.applyStatusFilter(query, pageOptionsDto);
 
     const [items, totalCount] = await query.getManyAndCount();
     const pageMetaDto = new PageMetaDto({ totalCount, pageOptionsDto });
@@ -46,16 +49,24 @@ export class RecurringCostsService {
     return new PageDto(items, pageMetaDto);
   }
 
-  async findAll(pageOptionsDto: PageOptionsDto): Promise<PageDto<RecurringCostsEntity>> {
-    const [items, totalCount] = await this.recurringCostsRepository.findAndCount({
-      order: { createdAt: pageOptionsDto.order },
-      skip: pageOptionsDto.skip,
-      take: pageOptionsDto.take,
-    });
+  async findAll(pageOptionsDto: StatusPageOptionsDto): Promise<PageDto<RecurringCostsEntity>> {
+    const query = this.recurringCostsRepository.createQueryBuilder('recurring_costs')
+      .orderBy('recurring_costs.createdAt', pageOptionsDto.order)
+      .skip(pageOptionsDto.skip)
+      .take(pageOptionsDto.take);
+    this.applyStatusFilter(query, pageOptionsDto);
 
+    const [items, totalCount] = await query.getManyAndCount();
     const pageMetaDto = new PageMetaDto({ totalCount, pageOptionsDto });
 
     return new PageDto(items, pageMetaDto);
+  }
+
+  /** Sin status se devuelven todos (comportamiento anterior). */
+  private applyStatusFilter(qb: any, pageOptionsDto: StatusPageOptionsDto) {
+    if (pageOptionsDto.status === 'active' || pageOptionsDto.status === 'inactive') {
+      qb.andWhere('recurring_costs.isActive = :isActive', { isActive: pageOptionsDto.status === 'active' });
+    }
   }
 
   async findOne(id: string) {

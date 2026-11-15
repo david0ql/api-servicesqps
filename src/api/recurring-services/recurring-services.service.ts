@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import moment from 'moment-timezone';
 
-import { PageOptionsDto } from 'src/dto/page-options.dto';
+import { StatusPageOptionsDto } from '../../dto/status-page-options.dto';
 import { PageMetaDto } from 'src/dto/page-meta.dto';
 import { PageDto } from 'src/dto/page.dto';
 import { SearchDto } from 'src/dto/search.dto';
@@ -72,14 +72,14 @@ export class RecurringServicesService {
     return recurringService;
   }
 
-  async searchByWord(searchDto: SearchDto, pageOptionsDto: PageOptionsDto): Promise<PageDto<RecurringServicesEntity>> {
+  async searchByWord(searchDto: SearchDto, pageOptionsDto: StatusPageOptionsDto): Promise<PageDto<RecurringServicesEntity>> {
     const query = this.recurringServicesRepository
       .createQueryBuilder('recurring')
       .leftJoinAndSelect('recurring.community', 'community')
       .leftJoinAndSelect('recurring.type', 'type')
       .leftJoinAndSelect('recurring.status', 'status')
       .leftJoinAndSelect('recurring.user', 'user')
-      .where('recurring.isActive = :isActive', { isActive: true })
+      .where('recurring.isActive = :isActive', { isActive: pageOptionsDto.status !== 'inactive' })
       .andWhere(new Brackets((qb) => {
         qb.where('community.communityName LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
           .orWhere('recurring.unitNumber LIKE :searchWord', { searchWord: `%${searchDto.searchWord}%` })
@@ -97,14 +97,15 @@ export class RecurringServicesService {
     return new PageDto(items, pageMetaDto);
   }
 
-  async findAll(pageOptionsDto: PageOptionsDto): Promise<PageDto<RecurringServicesEntity>> {
+  async findAll(pageOptionsDto: StatusPageOptionsDto): Promise<PageDto<RecurringServicesEntity>> {
     const query = this.recurringServicesRepository
       .createQueryBuilder('recurring')
       .leftJoinAndSelect('recurring.community', 'community')
       .leftJoinAndSelect('recurring.type', 'type')
       .leftJoinAndSelect('recurring.status', 'status')
       .leftJoinAndSelect('recurring.user', 'user')
-      .where('recurring.isActive = :isActive', { isActive: true })
+      // Sin status (o active): solo activas, como antes. status=inactive: las pausadas.
+      .where('recurring.isActive = :isActive', { isActive: pageOptionsDto.status !== 'inactive' })
       .orderBy('recurring.createdAt', pageOptionsDto.order)
       .skip(pageOptionsDto.skip)
       .take(pageOptionsDto.take);
