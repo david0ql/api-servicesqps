@@ -1,3 +1,4 @@
+import { sanitizeStaffCreate, sanitizeStaffUpdate } from './staff-edit-guard.util';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In, Brackets } from 'typeorm';
@@ -526,6 +527,8 @@ export class ServicesService {
     currentUser?: UsersEntity,
     recurringAssignedByUserId?: string | null,
   ) {
+    // Managers/supervisores: el servicio se crea sin cleaner y en estado Created.
+    createServiceDto = sanitizeStaffCreate(currentUser?.roleId, createServiceDto);
     const { extraId, ...createServiceDtoCopy } = createServiceDto;
 
     if (createServiceDto.userId) {
@@ -599,12 +602,16 @@ export class ServicesService {
         'assignmentReminderStage',
         'assignmentExpiredAt',
         'communityId',
+        'date',
       ],
     });
 
     if (!existingService) {
       throw new NotFoundException(`Service with ID ${id} not found`);
     }
+
+    // Managers/supervisores: no cambian la fecha (403) y se ignoran cleaner/estado.
+    updateServiceDto = sanitizeStaffUpdate(currentUser?.roleId, updateServiceDto, existingService.date);
 
     if (currentUser?.roleId === '7') {
       const isAssignedToCurrentUser = existingService.userId === currentUser.id;
