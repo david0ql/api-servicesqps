@@ -13,6 +13,9 @@ import { UsersPageOptionsDto } from './dto/users-page-options.dto';
 import { PageDto } from '../../dto/page.dto';
 import { PageMetaDto } from '../../dto/page-meta.dto';
 
+/** Roles que ya no se usan. 5 = Cheo (retirado el 2026-11-22). */
+export const RETIRED_ROLE_IDS = new Set(['5']);
+
 @Injectable()
 export class UsersService {
 
@@ -112,7 +115,9 @@ export class UsersService {
 
   async findAllRoles() {
     const roles = await this.rolesRepository.find();
-    return roles;
+    // Roles retirados: siguen en la tabla (usuarios inactivos los referencian),
+    // pero ya no se ofrecen para asignar ni filtrar.
+    return roles.filter((role) => !RETIRED_ROLE_IDS.has(String(role.id)));
   }
 
   async findOne(id: string) {
