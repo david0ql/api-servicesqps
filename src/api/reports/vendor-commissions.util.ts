@@ -67,6 +67,7 @@ export interface VendedorGlobal {
 export function calcularComisionesVendedores(
   services: ServicesEntity[],
   vendedoresGlobales: VendedorGlobal[] = [],
+  tasasPorVendedor: Record<string, number> = {},
 ): ComisionVendedor[] {
   const porVendedor = new Map<string, ComisionVendedor>();
   const idsGlobales = new Set(vendedoresGlobales.map((g) => String(g.vendorUserId)));
@@ -118,9 +119,10 @@ export function calcularComisionesVendedores(
       }
     }
 
+    // Tasa: la del complex si la tiene; si no, la del vendedor (config); si no, 10%.
     const tasa = community.vendorCommissionRate != null
       ? numero(community.vendorCommissionRate)
-      : TASA_COMISION_POR_DEFECTO;
+      : (tasasPorVendedor[String(vendorId)] ?? TASA_COMISION_POR_DEFECTO);
 
     acumular(vendorId, community.vendorUser?.name ?? 'Vendedor', community, tasa, facturadoDelServicio(service));
   }

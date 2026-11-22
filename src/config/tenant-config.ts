@@ -25,6 +25,8 @@ interface TenantReportsConfig {
   payoutReserveSplit?: PayoutReserveSplitConfig;
   netProfitColumnLabel?: string;
   globalVendors?: GlobalVendorConfig[];
+  /** Tasa por vendedor (userId -> tasa) cuando el complex no trae una propia. Default 10%. */
+  vendorRates?: Record<string, number>;
 }
 
 export interface TenantConfig {
@@ -37,9 +39,9 @@ const MAIN_TENANT_CONFIG: TenantConfig = {
   reports: {
     logoPath: 'src/assets/brands/main/logo.png',
     shareholderModel: 'main-dynamic',
-    // Diego Pinto (Vendedor, user 249): 20% de lo facturado de todos los complex
-    // desde el 16/11/2026. Reemplaza el 20% como accionista que se habia puesto.
-    globalVendors: [{ vendorUserId: '249', rate: 0.20, from: '2026-11-16' }],
+    // Diego Pinto (Vendedor, user 249): 20% de lo facturado, solo de los complex
+    // que tenga asignados como vendedor. Reemplaza el 20% como accionista.
+    vendorRates: { '249': 0.20 },
   },
 };
 

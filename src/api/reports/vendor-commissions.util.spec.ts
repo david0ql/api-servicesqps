@@ -160,3 +160,20 @@ describe('vendedor global (sin complex asignados)', () => {
   });
 });
 
+describe('tasa por vendedor (config)', () => {
+  it('Diego cobra 20% solo de sus complex asignados; los demás vendedores 10%', () => {
+    const svc = (date: string, community: any) => ({ date, type: { price: 100 }, extrasByServices: [], community } as any);
+    const deDiego = { id: 'D', communityName: 'Diego Complex', vendorUserId: '249', vendorUser: { name: 'Diego' }, vendorAssignedAt: '2026-11-16' };
+    const deOtro = { id: 'O', communityName: 'Otro Complex', vendorUserId: '250', vendorUser: { name: 'Otro' }, vendorAssignedAt: '2026-01-01' };
+    const sinVendedor = { id: 'S', communityName: 'Libre', vendorUserId: null };
+    const res = calcularComisionesVendedores(
+      [svc('2026-11-17', deDiego), svc('2026-11-17', deOtro), svc('2026-11-17', sinVendedor), svc('2026-11-10', deDiego)],
+      [],
+      { '249': 0.2 },
+    );
+    expect(res.find((v) => v.vendorUserId === '249')).toMatchObject({ base: 100, comision: 20 });
+    expect(res.find((v) => v.vendorUserId === '250')).toMatchObject({ base: 100, comision: 10 });
+    expect(res).toHaveLength(2);
+  });
+});
+

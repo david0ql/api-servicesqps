@@ -259,7 +259,7 @@ export class ReportsService {
     // Comisiones de los vendedores asociados (brokers). Se calculan sobre lo
     // facturado a cada complex (precio de servicios + extras), y se descuentan
     // del neto a cobrar del socio como un pago mas de la semana.
-    const comisionesVendedores = calcularComisionesVendedores(services, await this.vendedoresGlobales());
+    const comisionesVendedores = calcularComisionesVendedores(services, await this.vendedoresGlobales(), tenantConfig.reports.vendorRates ?? {});
     const totalVendedores = totalComisiones(comisionesVendedores);
     const netoSocioDespuesVendedores = Number((netProfit - totalVendedores).toFixed(2));
 
@@ -710,7 +710,7 @@ export class ReportsService {
       this.applyReportVisibilityFilter(queryBuilder);
 
       const servicios = await queryBuilder.getMany();
-      const comisiones = calcularComisionesVendedores(servicios, global ? [global] : []);
+      const comisiones = calcularComisionesVendedores(servicios, global ? [global] : [], tenantConfig.reports.vendorRates ?? {});
       return comisiones.find((c) => String(c.vendorUserId) === String(vendorUserId))
         ?? { vendorUserId, vendorName: '', base: 0, comision: 0, complexes: [] };
     };
