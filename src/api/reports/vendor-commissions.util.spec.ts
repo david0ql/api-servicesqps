@@ -132,3 +132,31 @@ describe('calcularComisionesVendedores', () => {
     expect(TASA_COMISION_POR_DEFECTO).toBe(0.10);
   });
 });
+
+describe('vendedor global (sin complex asignados)', () => {
+  const svc = (id: string, date: string, price: number, community: any) =>
+    ({ id, date, type: { price }, extrasByServices: [{ extra: { itemPrice: 10 } }], community } as any);
+  const cA = { id: 'A', communityName: 'Alpha', vendorUserId: null };
+  const cB = { id: 'B', communityName: 'Beta', vendorUserId: '250', vendorUser: { name: 'Otro' }, vendorAssignedAt: '2026-01-01' };
+  const diego = { vendorUserId: '249', rate: 0.2, from: '2026-11-16', name: 'Diego Pinto (Vendedor)' };
+
+  it('cobra 20% de lo facturado de todos los complex desde la fecha', () => {
+    const res = calcularComisionesVendedores([
+      svc('1', '2026-11-15', 100, cA), // antes de la fecha: no cuenta para Diego
+      svc('2', '2026-11-16', 100, cA),
+      svc('3', '2026-11-20', 200, cB),
+    ], [diego]);
+    const d = res.find((v) => v.vendorUserId === '249')!;
+    expect(d.base).toBe(320); // (100+10) + (200+10)
+    expect(d.comision).toBe(64);
+    expect(d.complexes.map((c) => c.communityName).sort()).toEqual(['Alpha', 'Beta']);
+    // El vendedor del complex B sigue cobrando su 10% aparte
+    expect(res.find((v) => v.vendorUserId === '250')!.comision).toBe(21);
+  });
+
+  it('sin vendedores globales todo queda como antes', () => {
+    const res = calcularComisionesVendedores([svc('2', '2026-11-16', 100, cA)]);
+    expect(res).toEqual([]);
+  });
+});
+
