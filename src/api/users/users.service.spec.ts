@@ -123,3 +123,11 @@ describe('UsersService filtro por estado (activo/inactivo)', () => {
     expect(qb.andWhere).not.toHaveBeenCalled();
   });
 });
+
+describe('UsersService.findAllRoles', () => {
+  it('no ofrece el rol Cheo (retirado)', async () => {
+    const rolesRepository = { find: jest.fn(async () => [{ id: '1', name: 'super_admin' }, { id: '5', name: 'Cheo' }, { id: '6', name: 'Supervisor' }]) };
+    const service = new UsersService(rolesRepository as any, {} as any);
+    expect((await service.findAllRoles()).map((r: any) => r.id)).toEqual(['1', '6']);
+  });
+});
