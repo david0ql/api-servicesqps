@@ -56,13 +56,58 @@ export function facturadoDelServicio(service: ServicesEntity): number {
  * Solo entran los complex que tienen vendedor asignado y cuya fecha de
  * asignacion es anterior o igual a la fecha del servicio.
  */
-export function calcularComisionesVendedores(services: ServicesEntity[]): ComisionVendedor[] {
+export interface VendedorGlobal {
+  vendorUserId: string;
+  rate: number;
+  /** YYYY-MM-DD: solo cuentan servicios con fecha >= from. */
+  from: string;
+  name?: string;
+}
+
+export function calcularComisionesVendedores(
+  services: ServicesEntity[],
+  vendedoresGlobales: VendedorGlobal[] = [],
+): ComisionVendedor[] {
   const porVendedor = new Map<string, ComisionVendedor>();
+  const idsGlobales = new Set(vendedoresGlobales.map((g) => String(g.vendorUserId)));
+
+  const acumular = (
+    vendorId: string,
+    vendorName: string,
+    community: ServicesEntity['community'],
+    tasa: number,
+    facturado: number,
+  ) => {
+    if (!porVendedor.has(vendorId)) {
+      porVendedor.set(vendorId, { vendorUserId: vendorId, vendorName, base: 0, comision: 0, complexes: [] });
+    }
+    const vendedor = porVendedor.get(vendorId)!;
+    const communityId = community?.id ?? 'sin-complex';
+    let complex = vendedor.complexes.find((c) => c.communityId === communityId);
+    if (!complex) {
+      complex = { communityId, communityName: community?.communityName ?? 'Sin nombre', base: 0, tasa, comision: 0 };
+      vendedor.complexes.push(complex);
+    }
+    complex.base += facturado;
+    vendedor.base += facturado;
+  };
+
+  // Vendedores globales (sin complex asignados): tasa sobre lo facturado de todos los complex.
+  for (const service of services) {
+    for (const global of vendedoresGlobales) {
+      const desde = moment.utc(global.from, 'YYYY-MM-DD', true);
+      const fechaServicio = moment.utc(service.date);
+      if (desde.isValid() && fechaServicio.isValid() && fechaServicio.isBefore(desde, 'day')) continue;
+      acumular(String(global.vendorUserId), global.name ?? 'Vendedor', service.community, numero(global.rate), facturadoDelServicio(service));
+    }
+  }
 
   for (const service of services) {
     const community = service.community;
     const vendorId = community?.vendorUserId;
     if (!community || !vendorId) continue;
+    // Un vendedor global ya cobra sobre todos los complex: no se cuenta dos veces.
+    if (idsGlobales.has(String(vendorId))) continue;
 
     // La comision aplica desde que se le asigno el vendedor al complex.
     if (community.vendorAssignedAt) {
@@ -77,33 +122,7 @@ export function calcularComisionesVendedores(services: ServicesEntity[]): Comisi
       ? numero(community.vendorCommissionRate)
       : TASA_COMISION_POR_DEFECTO;
 
-    const facturado = facturadoDelServicio(service);
-
-    if (!porVendedor.has(vendorId)) {
-      porVendedor.set(vendorId, {
-        vendorUserId: vendorId,
-        vendorName: community.vendorUser?.name ?? 'Vendedor',
-        base: 0,
-        comision: 0,
-        complexes: [],
-      });
-    }
-
-    const vendedor = porVendedor.get(vendorId)!;
-    let complex = vendedor.complexes.find((c) => c.communityId === community.id);
-    if (!complex) {
-      complex = {
-        communityId: community.id,
-        communityName: community.communityName ?? 'Sin nombre',
-        base: 0,
-        tasa,
-        comision: 0,
-      };
-      vendedor.complexes.push(complex);
-    }
-
-    complex.base += facturado;
-    vendedor.base += facturado;
+    acumular(vendorId, community.vendorUser?.name ?? 'Vendedor', community, tasa, facturadoDelServicio(service));
   }
 
   // El redondeo se hace UNA sola vez, sobre el total de cada complex, para que

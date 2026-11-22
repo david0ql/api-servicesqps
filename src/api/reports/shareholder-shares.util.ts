@@ -10,7 +10,6 @@ export interface ShareholderShare {
 const TWO_SHAREHOLDERS_MODEL_CHANGE_DATE = '2026-02-16';
 const FELIX_ONLY_MODEL_CHANGE_DATE = '2026-06-01';
 /** Desde esta fecha (fin de semana del reporte) Diego entra con el 20% de ganancias y gastos. */
-export const DIEGO_SHAREHOLDER_START_DATE = '2026-11-16';
 
 interface ShareholderTranche {
   from: string;
@@ -20,13 +19,6 @@ interface ShareholderTranche {
 // Ordenados de la fecha mas reciente a la mas antigua: gana el primero cuyo
 // `from` sea <= a la fecha de fin del reporte.
 const SHAREHOLDER_TRANCHES: ShareholderTranche[] = [
-  {
-    from: DIEGO_SHAREHOLDER_START_DATE,
-    shareholders: [
-      { name: 'Felix', percentage: 0.8 },
-      { name: 'Diego', percentage: 0.2 },
-    ],
-  },
   {
     from: FELIX_ONLY_MODEL_CHANGE_DATE,
     shareholders: [{ name: 'Felix', percentage: 1 }],
