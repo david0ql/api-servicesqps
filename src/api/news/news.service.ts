@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository, SelectQueryBuilder } from 'typeorm';
 import { Expo } from 'expo-server-sdk';
 
-import { NewsEntity } from '../../entities/news.entity';
+import { NewsAudienceUser, NewsEntity } from '../../entities/news.entity';
 import { NewsReadsEntity } from '../../entities/news_reads.entity';
 import { UsersEntity } from '../../entities/users.entity';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
@@ -39,15 +39,32 @@ type CurrentUser = Pick<UsersEntity, 'id' | 'roleId'>;
 export const isNewsAdmin = (user?: Pick<UsersEntity, 'roleId'> | null) =>
   Boolean(user?.roleId && NEWS_ADMIN_ROLE_IDS.has(String(user.roleId)));
 
-/** null o [] = todos. Si hay roles, el del usuario debe estar incluido. */
+/**
+ * Quién ve la noticia:
+ * - sin roles ni usuarios: todos;
+ * - usuario elegido explícitamente: sí;
+ * - rol incluido y SIN usuarios elegidos de ese rol: todo el rol;
+ * - rol incluido CON usuarios elegidos de ese rol: solo esos usuarios.
+ */
+export const isNewsVisibleFor = (
+  audienceRoles: string[] | null | undefined,
+  audienceUsers: NewsAudienceUser[] | null | undefined,
+  user: { id?: string | null; roleId?: string | null },
+) => {
+  const roles = (audienceRoles ?? []).map(String);
+  const users = audienceUsers ?? [];
+  if (roles.length === 0 && users.length === 0) return true;
+  if (user.id && users.some((u) => String(u.id) === String(user.id))) return true;
+  if (!user.roleId) return false;
+  const role = String(user.roleId);
+  return roles.includes(role) && !users.some((u) => String(u.roleId) === role);
+};
+
+/** Compatibilidad: visibilidad solo por rol (sin usuarios específicos). */
 export const isNewsVisibleForRole = (
   audienceRoles: string[] | null | undefined,
   roleId: string | null | undefined,
-) => {
-  if (!audienceRoles || audienceRoles.length === 0) return true;
-  if (!roleId) return false;
-  return audienceRoles.map(String).includes(String(roleId));
-};
+) => isNewsVisibleFor(audienceRoles, null, { roleId });
 
 const normalizeAudience = (audienceRoles?: string[] | null) => {
   if (!audienceRoles) return null;
@@ -72,6 +89,23 @@ export class NewsService {
     private readonly pushNotificationsService: PushNotificationsService,
   ) { }
 
+  /**
+   * Normaliza la audiencia: los usuarios elegidos se guardan con su rol (de la BD)
+   * y sus roles se agregan a audienceRoles. Vacío = null.
+   */
+  private async resolveAudience(audienceRoles?: string[] | null, audienceUserIds?: string[] | null) {
+    const roles = new Set(normalizeAudience(audienceRoles) ?? []);
+    const ids = Array.from(new Set((audienceUserIds ?? []).map((id) => String(id).trim()).filter(Boolean)));
+    let audienceUsers: NewsAudienceUser[] | null = null;
+    if (ids.length) {
+      const users = await this.usersRepository.find({ where: ids.map((id) => ({ id })), select: ['id', 'roleId'] });
+      audienceUsers = users.map((u) => ({ id: String(u.id), roleId: String(u.roleId) }));
+      audienceUsers.forEach((u) => roles.add(u.roleId));
+      if (!audienceUsers.length) audienceUsers = null;
+    }
+    return { audienceRoles: roles.size ? Array.from(roles) : null, audienceUsers };
+  }
+
   assertAdmin(user?: CurrentUser | null) {
     if (!isNewsAdmin(user)) {
       throw new ForbiddenException('Only administrators can manage news.');
@@ -88,7 +122,7 @@ export class NewsService {
       title: createNewsDto.title,
       body: createNewsDto.body,
       imageUrl: createNewsDto.imageUrl || null,
-      audienceRoles: normalizeAudience(createNewsDto.audienceRoles),
+      ...(await this.resolveAudience(createNewsDto.audienceRoles, createNewsDto.audienceUserIds)),
       isPublished: shouldPublish,
       publishedAt: shouldPublish ? new Date() : null,
       createdByUserId: currentUser.id,
@@ -137,7 +171,7 @@ export class NewsService {
     }
 
     if (!isNewsAdmin(currentUser)
-      && (!news.isPublished || !isNewsVisibleForRole(news.audienceRoles, currentUser.roleId))) {
+      && (!news.isPublished || !isNewsVisibleFor(news.audienceRoles, news.audienceUsers, currentUser))) {
       throw new NotFoundException(`News with ID ${id} not found`);
     }
 
@@ -158,7 +192,16 @@ export class NewsService {
     if (updateNewsDto.title !== undefined) news.title = updateNewsDto.title;
     if (updateNewsDto.body !== undefined) news.body = updateNewsDto.body;
     if (updateNewsDto.imageUrl !== undefined) news.imageUrl = updateNewsDto.imageUrl || null;
-    if (updateNewsDto.audienceRoles !== undefined) news.audienceRoles = normalizeAudience(updateNewsDto.audienceRoles);
+    if (updateNewsDto.audienceRoles !== undefined || updateNewsDto.audienceUserIds !== undefined) {
+      const audience = await this.resolveAudience(
+        updateNewsDto.audienceRoles !== undefined ? updateNewsDto.audienceRoles : news.audienceRoles,
+        updateNewsDto.audienceUserIds !== undefined
+          ? updateNewsDto.audienceUserIds
+          : (news.audienceUsers ?? []).map((u) => u.id),
+      );
+      news.audienceRoles = audience.audienceRoles;
+      news.audienceUsers = audience.audienceUsers;
+    }
     if (updateNewsDto.isPublished !== undefined) news.isPublished = updateNewsDto.isPublished;
     if (isFirstPublish) news.publishedAt = new Date();
 
@@ -222,7 +265,7 @@ export class NewsService {
   async accept(id: string, currentUser: CurrentUser) {
     const news = await this.newsRepository.findOne({ where: { id } });
 
-    if (!news || !news.isPublished || !isNewsVisibleForRole(news.audienceRoles, currentUser.roleId)) {
+    if (!news || !news.isPublished || !isNewsVisibleFor(news.audienceRoles, news.audienceUsers, currentUser)) {
       throw new NotFoundException(`News with ID ${id} not found`);
     }
 
@@ -255,11 +298,19 @@ export class NewsService {
     const query = this.newsRepository.createQueryBuilder('news')
       .where('news.isPublished = :isPublished', { isPublished: true });
 
-    // simple-json guarda '["4","7"]': se busca el id de rol entre comillas.
+    // simple-json guarda '["4","7"]' y '[{"id":"12","roleId":"4"}]' (orden de claves fijo).
+    // Misma regla que isNewsVisibleFor, en SQL para que la paginación cuadre.
     query.andWhere(new Brackets((qb) => {
-      qb.where('news.audienceRoles IS NULL');
+      qb.where('news.audienceRoles IS NULL AND news.audienceUsers IS NULL');
+      qb.orWhere('news.audienceUsers LIKE :userLike', { userLike: `%"id":"${currentUser.id}"%` });
       if (currentUser.roleId) {
-        qb.orWhere('news.audienceRoles LIKE :roleLike', { roleLike: `%"${currentUser.roleId}"%` });
+        qb.orWhere(new Brackets((r) => {
+          r.where('news.audienceRoles LIKE :roleLike', { roleLike: `%"${currentUser.roleId}"%` })
+            .andWhere(new Brackets((u) => {
+              u.where('news.audienceUsers IS NULL')
+                .orWhere('news.audienceUsers NOT LIKE :roleUsersLike', { roleUsersLike: `%"roleId":"${currentUser.roleId}"%` });
+            }));
+        }));
       }
     }));
 
@@ -302,7 +353,7 @@ export class NewsService {
 
       const tokens = Array.from(new Set(
         users
-          .filter((user) => isNewsVisibleForRole(news.audienceRoles, user.roleId))
+          .filter((user) => isNewsVisibleFor(news.audienceRoles, news.audienceUsers, user))
           .map((user) => user.token)
           .filter((token) => Expo.isExpoPushToken(token)),
       ));

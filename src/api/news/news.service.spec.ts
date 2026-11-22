@@ -11,7 +11,7 @@ jest.mock('../../dto/page-meta.dto', () => ({
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
-import { isNewsVisibleForRole, NewsService } from './news.service';
+import { isNewsVisibleFor, isNewsVisibleForRole, NewsService } from './news.service';
 
 const VALID_TOKEN_A = 'ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]';
 const VALID_TOKEN_B = 'ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbb]';
@@ -73,6 +73,37 @@ describe('isNewsVisibleForRole', () => {
     expect(isNewsVisibleForRole(['4', '7'], '4')).toBe(true);
     expect(isNewsVisibleForRole(['7'], '4')).toBe(false);
     expect(isNewsVisibleForRole(['7'], null)).toBe(false);
+  });
+});
+
+describe('isNewsVisibleFor (roles + usuarios específicos)', () => {
+  const cleanerA = { id: '10', roleId: '4' };
+  const cleanerB = { id: '11', roleId: '4' };
+  const supervisorA = { id: '20', roleId: '6' };
+  const supervisorB = { id: '21', roleId: '6' };
+
+  it('sin audiencia la ve todo el mundo', () => {
+    expect(isNewsVisibleFor(null, null, cleanerA)).toBe(true);
+  });
+
+  it('todo el rol cuando no hay usuarios elegidos de ese rol', () => {
+    expect(isNewsVisibleFor(['4'], null, cleanerB)).toBe(true);
+    expect(isNewsVisibleFor(['4'], null, supervisorA)).toBe(false);
+  });
+
+  it('solo los usuarios elegidos dentro de un rol', () => {
+    const users = [{ id: '10', roleId: '4' }];
+    expect(isNewsVisibleFor(['4'], users, cleanerA)).toBe(true);
+    expect(isNewsVisibleFor(['4'], users, cleanerB)).toBe(false);
+  });
+
+  it('combinado: todos los cleaners + un supervisor puntual', () => {
+    const users = [{ id: '20', roleId: '6' }];
+    const roles = ['4', '6'];
+    expect(isNewsVisibleFor(roles, users, cleanerA)).toBe(true);
+    expect(isNewsVisibleFor(roles, users, cleanerB)).toBe(true);
+    expect(isNewsVisibleFor(roles, users, supervisorA)).toBe(true);
+    expect(isNewsVisibleFor(roles, users, supervisorB)).toBe(false);
   });
 });
 

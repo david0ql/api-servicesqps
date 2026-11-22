@@ -8,8 +8,15 @@ import {
 /**
  * Noticia del portal "Last News" que se muestra dentro de la app movil.
  * `audienceRoles` null = todos los usuarios de la app; si trae ids de rol,
- * solo esos roles la ven.
+ * solo esos roles la ven. `audienceUsers` permite elegir, dentro de un rol,
+ * usuarios específicos: si un rol tiene usuarios elegidos, de ese rol solo
+ * ellos la ven; si no, todo el rol.
  */
+export interface NewsAudienceUser {
+  id: string;
+  roleId: string;
+}
+
 @Index("news_published", ["isPublished", "publishedAt"], {})
 @Entity("news", { schema: "services_dbqa" })
 export class NewsEntity {
@@ -27,6 +34,9 @@ export class NewsEntity {
 
   @Column("simple-json", { name: "audience_roles", nullable: true })
   audienceRoles: string[] | null;
+
+  @Column("simple-json", { name: "audience_users", nullable: true })
+  audienceUsers: NewsAudienceUser[] | null;
 
   @Column("tinyint", { name: "is_published", width: 1, default: () => "0" })
   isPublished: boolean;

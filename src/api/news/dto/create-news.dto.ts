@@ -43,6 +43,18 @@ export class CreateNewsDto {
   @Transform(({ value }) => (Array.isArray(value) ? value.map((item) => String(item)) : value))
   audienceRoles?: string[] | null;
 
+  @ApiPropertyOptional({
+    description: 'Usuarios específicos. Si un rol tiene usuarios elegidos, de ese rol solo ellos ven la noticia.',
+    example: ['120', '135'],
+    nullable: true,
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) => (Array.isArray(value) ? value.map((item) => String(item)) : value))
+  audienceUserIds?: string[] | null;
+
   @ApiPropertyOptional({ description: 'Publicar la noticia (envia push la primera vez)', example: false })
   @IsOptional()
   @IsBoolean()
