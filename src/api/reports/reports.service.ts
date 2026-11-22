@@ -19,7 +19,7 @@ import { TextBeeService } from '../../textbee/textbee.service';
 import envVars from '../../config/env';
 import { getTenantConfig } from '../../config/tenant-config';
 import { buildShareholderShares } from './shareholder-shares.util';
-import { calcularComisionesVendedores, totalComisiones, VendedorGlobal } from './vendor-commissions.util';
+import { calcularComisionesVendedores, totalComisiones } from './vendor-commissions.util';
 import { expandRecurringCosts } from './recurring-cost-occurrences.util';
 import {
   COST_CATEGORIES,
@@ -257,7 +257,7 @@ export class ReportsService {
     // Comisiones de los vendedores asociados (brokers). Se calculan sobre lo
     // facturado a cada complex (precio de servicios + extras), y se descuentan
     // del neto a cobrar del socio como un pago mas de la semana.
-    const comisionesVendedores = calcularComisionesVendedores(services, await this.vendedoresGlobales());
+    const comisionesVendedores = calcularComisionesVendedores(services);
     const totalVendedores = totalComisiones(comisionesVendedores);
     const netoSocioDespuesVendedores = Number((netProfit - totalVendedores).toFixed(2));
 
@@ -674,21 +674,9 @@ export class ReportsService {
    * El id sale del usuario autenticado, nunca de un parametro, para que un
    * vendedor no pueda pedir los datos de otro cambiando la URL.
    */
-  /** Vendedores globales del tenant (config) con su nombre, para el reporte. */
-  private async vendedoresGlobales(): Promise<VendedorGlobal[]> {
-    const config = tenantConfig.reports.globalVendors ?? [];
-    if (!config.length) return [];
-    const users = await this.usersRepository.find({
-      where: config.map((g) => ({ id: g.vendorUserId })),
-      select: ['id', 'name'],
-    });
-    return config.map((g) => ({ ...g, name: users.find((u) => String(u.id) === String(g.vendorUserId))?.name ?? 'Vendedor' }));
-  }
-
   async reporteVendedor(vendorUserId: string, startDate: string, endDate: string) {
     const inicio = moment(startDate).format('YYYY-MM-DD');
     const fin = moment(endDate).format('YYYY-MM-DD');
-    const global = (await this.vendedoresGlobales()).find((g) => String(g.vendorUserId) === String(vendorUserId));
 
     const armarPeriodo = async (desde: string, hasta: string) => {
       const queryBuilder = this.servicesRepository.createQueryBuilder('services')
@@ -697,16 +685,15 @@ export class ReportsService {
         .leftJoinAndSelect('services.type', 'type')
         .leftJoinAndSelect('services.extrasByServices', 'extrasByServices')
         .leftJoinAndSelect('extrasByServices.extra', 'extra')
-        .where('services.date BETWEEN :desde AND :hasta', { desde, hasta });
-      // Vendedor global: todos los complex. Normal: solo los que tiene asignados.
-      if (!global) queryBuilder.andWhere('community.vendorUserId = :vendorUserId', { vendorUserId });
+        .where('services.date BETWEEN :desde AND :hasta', { desde, hasta })
+        .andWhere('community.vendorUserId = :vendorUserId', { vendorUserId });
 
       this.applyReportVisibilityFilter(queryBuilder);
 
       const servicios = await queryBuilder.getMany();
-      const comisiones = calcularComisionesVendedores(servicios, global ? [global] : []);
-      return comisiones.find((c) => String(c.vendorUserId) === String(vendorUserId))
-        ?? { vendorUserId, vendorName: '', base: 0, comision: 0, complexes: [] };
+      const comisiones = calcularComisionesVendedores(servicios);
+      // Al filtrar por vendorUserId solo puede venir este vendedor.
+      return comisiones[0] ?? { vendorUserId, vendorName: '', base: 0, comision: 0, complexes: [] };
     };
 
     const periodo = await armarPeriodo(inicio, fin);
