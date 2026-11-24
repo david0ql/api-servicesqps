@@ -23,6 +23,10 @@ import { UpdateNewsDto } from './dto/update-news.dto';
 export const NEWS_ADMIN_ROLE_IDS = new Set<string>(['1', '9']);
 
 const PUSH_BODY_MAX_LENGTH = 140;
+const SMS_BODY_MAX_LENGTH = 300;
+
+export const newsSmsText = (news: Pick<NewsEntity, 'title' | 'body'>) =>
+  `QPS News: ${news.title.trim()}\n${truncate(news.body.replace(/\s+/g, ' ').trim(), SMS_BODY_MAX_LENGTH)}\nOpen the app to read it.`;
 
 export interface NewsForUser {
   id: string;
@@ -342,38 +346,52 @@ export class NewsService {
     };
   }
 
-  /** Push (sin SMS) a todos los usuarios activos de la app con token Expo que esten en la audiencia. */
+  /** Push y SMS a los usuarios activos de la audiencia. El push va a los que
+   *  tienen token Expo; el SMS a los que tienen telefono (sale en segundo plano
+   *  porque la cola de TextBee los manda de a uno y no debe frenar la respuesta). */
   async notifyPublished(news: NewsEntity) {
     try {
-      const users = await this.usersRepository.createQueryBuilder('user')
-        .select(['user.id', 'user.roleId', 'user.token'])
+      const users = (await this.usersRepository.createQueryBuilder('user')
+        .select(['user.id', 'user.name', 'user.roleId', 'user.token', 'user.phoneNumber'])
         .where('user.isActive = :isActive', { isActive: true })
-        .andWhere("user.token IS NOT NULL AND user.token <> ''")
-        .getMany();
+        .andWhere("((user.token IS NOT NULL AND user.token <> '') OR (user.phoneNumber IS NOT NULL AND user.phoneNumber <> ''))")
+        .getMany())
+        .filter((user) => isNewsVisibleFor(news.audienceRoles, news.audienceUsers, user));
 
       const tokens = Array.from(new Set(
-        users
-          .filter((user) => isNewsVisibleFor(news.audienceRoles, news.audienceUsers, user))
-          .map((user) => user.token)
-          .filter((token) => Expo.isExpoPushToken(token)),
+        users.map((user) => user.token).filter((token) => token && Expo.isExpoPushToken(token)),
       ));
 
-      if (tokens.length === 0) {
-        return { sent: 0 };
-      }
-
-      await this.pushNotificationsService.sendNotification({
-        title: news.title,
-        body: truncate(news.body.replace(/\s+/g, ' ').trim(), PUSH_BODY_MAX_LENGTH),
-        data: { type: 'news', newsId: news.id },
-        tokensNotification: { tokens, users: [] },
-        skipSms: true,
+      const seenPhones = new Set<string>();
+      const smsUsers = users.filter((user) => {
+        const phone = user.phoneNumber?.trim();
+        if (!phone || seenPhones.has(phone)) return false;
+        seenPhones.add(phone);
+        return true;
       });
 
-      return { sent: tokens.length };
+      if (tokens.length > 0) {
+        await this.pushNotificationsService.sendNotification({
+          title: news.title,
+          body: truncate(news.body.replace(/\s+/g, ' ').trim(), PUSH_BODY_MAX_LENGTH),
+          data: { type: 'news', newsId: news.id },
+          tokensNotification: { tokens, users: [] },
+          skipSms: true,
+        });
+      }
+
+      if (smsUsers.length > 0) {
+        void this.pushNotificationsService.sendNotification({
+          title: news.title,
+          body: newsSmsText(news),
+          tokensNotification: { tokens: [], users: smsUsers as any },
+        }).catch((error) => this.logger.error(`Error sending news SMS for news ${news.id}`, error as any));
+      }
+
+      return { sent: tokens.length, sms: smsUsers.length };
     } catch (error) {
       this.logger.error(`Error sending news push for news ${news.id}`, error as any);
-      return { sent: 0 };
+      return { sent: 0, sms: 0 };
     }
   }
 }
