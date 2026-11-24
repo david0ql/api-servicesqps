@@ -129,7 +129,27 @@ describe('NewsService', () => {
     expect(pushNotificationsService.sendNotification).not.toHaveBeenCalled();
   });
 
-  it('on publish sends push only to audience users with valid Expo tokens and never SMS', async () => {
+  it('on publish also sends SMS to audience users with phone (deduped, out of audience excluded)', async () => {
+    const { service, usersQb, pushNotificationsService } = createService();
+    usersQb.getMany.mockResolvedValue([
+      { id: 'u1', roleId: '4', token: VALID_TOKEN_A, phoneNumber: '+18633352203' },
+      { id: 'u2', roleId: '7', token: null, phoneNumber: '+14070000000' },
+      { id: 'u3', roleId: '4', token: null, phoneNumber: '+13210000000' },
+      { id: 'u4', roleId: '4', token: null, phoneNumber: '+18633352203' },
+      { id: 'u5', roleId: '4', token: null, phoneNumber: null },
+    ]);
+
+    await service.create({ title: 'Aviso', body: 'Mañana  no hay\nservicio', isPublished: true, audienceRoles: ['4'] }, admin);
+    await new Promise((r) => setImmediate(r));
+
+    const calls = pushNotificationsService.sendNotification.mock.calls.map((c: any[]) => c[0]);
+    const sms = calls.find((c: any) => !c.skipSms);
+    expect(sms.tokensNotification.tokens).toEqual([]);
+    expect(sms.tokensNotification.users.map((u: any) => u.id)).toEqual(['u1', 'u3']);
+    expect(sms.body).toBe('QPS News: Aviso\nMañana no hay servicio\nOpen the app to read it.');
+  });
+
+  it('on publish sends push only to audience users with valid Expo tokens', async () => {
     const { service, usersQb, pushNotificationsService } = createService();
     usersQb.getMany.mockResolvedValue([
       { id: 'u1', roleId: '4', token: VALID_TOKEN_A },
@@ -140,7 +160,7 @@ describe('NewsService', () => {
 
     await service.create({ title: 'Big news', body: 'Read this', isPublished: true, audienceRoles: ['4'] }, admin);
 
-    expect(pushNotificationsService.sendNotification).toHaveBeenCalledTimes(1);
+    expect(pushNotificationsService.sendNotification).toHaveBeenCalledTimes(1); // sin teléfonos: no hay SMS
     const payload = (pushNotificationsService.sendNotification.mock.calls[0] as any[])[0];
     expect(payload.skipSms).toBe(true);
     expect(payload.tokensNotification.users).toEqual([]);
