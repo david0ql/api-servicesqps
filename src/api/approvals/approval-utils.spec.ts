@@ -4,6 +4,7 @@ import { parseApprovalReply } from './sms-reply.parser';
 import { normalizePhone, samePhone } from './phone.util';
 import { generateUniqueApprovalCode, randomApprovalCode, APPROVAL_CODE_PATTERN } from './approval-code.util';
 import { decideApprovalInterception } from './approval-decision.util';
+import { canSkipBlackouts } from '../services/blackout-bypass.util';
 import { buildApprovalSummary } from './approval-summary.util';
 import { verifyTextBeeSignature } from '../../textbee/textbee-signature.util';
 import { isAdminLike, isAdminPapel } from '../../constants/roles';
@@ -100,6 +101,23 @@ describe('decideApprovalInterception', () => {
   it('reconoce la re-ejecución con token', () => {
     expect(decideApprovalInterception({ method: 'PATCH', skip: false, user: papel, approvalToken: 'abc' })).toBe('replay');
     expect(decideApprovalInterception({ method: 'PATCH', skip: false, user: papel, approvalToken: '  ' })).toBe('queue');
+  });
+
+  it('re-ejecución aprobada de un supervisor (feriado) también se valida como replay', () => {
+    const supervisor = { id: '209', roleId: '6' };
+    expect(decideApprovalInterception({ method: 'POST', skip: false, user: supervisor, approvalToken: 'abc' })).toBe('replay');
+    expect(decideApprovalInterception({ method: 'POST', skip: false, user: supervisor })).toBe('pass');
+  });
+});
+
+describe('canSkipBlackouts', () => {
+  it('solo el super admin o una petición ya aprobada saltan los feriados', () => {
+    expect(canSkipBlackouts({ roleId: '1' })).toBe(true);
+    expect(canSkipBlackouts({ roleId: '6' }, true)).toBe(true);
+    expect(canSkipBlackouts({ roleId: '6' })).toBe(false);
+    expect(canSkipBlackouts({ roleId: '3' })).toBe(false);
+    expect(canSkipBlackouts({ roleId: '9' })).toBe(false);
+    expect(canSkipBlackouts(undefined)).toBe(false);
   });
 });
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import moment from 'moment-timezone';
@@ -15,12 +15,18 @@ import { ServicesEntity } from '../../entities/services.entity';
 import { ApiPaginatedResponse } from '../../decorators/api-paginated-response.decorator';
 import { PageDto } from '../../dto/page.dto';
 import { SkipApproval } from '../../decorators/skip-approval.decorator';
+import { ApprovalsService } from '../approvals/approvals.service';
+import { ServiceBlockedByBlackoutException } from '../community-blackouts/community-blackouts.service';
+import { isAdminPapel } from '../../constants/roles';
 
 @ApiBearerAuth()
 @ApiTags('services')
 @Controller('services')
 export class ServicesController {
-  constructor(private readonly servicesService: ServicesService) { }
+  constructor(
+    private readonly servicesService: ServicesService,
+    private readonly approvalsService: ApprovalsService,
+  ) { }
 
   // Lectura: no modifica datos.
   @Post('/search')
@@ -201,14 +207,39 @@ export class ServicesController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'))
-  create(@Body() createServiceDto: CreateServiceDto, @Request() req: any) {
-    return this.servicesService.create(createServiceDto, req.user.user);
+  async create(@Body() createServiceDto: CreateServiceDto, @Request() req: any) {
+    const user = req.user.user;
+    try {
+      return await this.servicesService.create(createServiceDto, user, null, { approvedReplay: req.approvedReplay === true });
+    } catch (error) {
+      // Día feriado / fuera de servicio: en vez de solo rechazar, la creación
+      // queda como solicitud que un super admin aprueba por SMS o en la web.
+      if (!(error instanceof ServiceBlockedByBlackoutException) || req.approvedReplay || isAdminPapel(user?.roleId)) {
+        throw error;
+      }
+      const change = await this.approvalsService.queueRequest({
+        method: req.method,
+        url: req.originalUrl ?? req.url,
+        body: req.body,
+        user,
+      });
+      throw new HttpException(
+        {
+          pendingApproval: true,
+          id: change.id,
+          code: change.code,
+          summary: change.summary,
+          message: `${error.message} Se envió al administrador para aprobación (código ${change.code}). Te avisaremos por SMS.`,
+        },
+        HttpStatus.ACCEPTED,
+      );
+    }
   }
 
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'))
   update(@Param('id') id: string, @Body() updateServiceDto: UpdateServiceDto, @Request() req: any) {
-    return this.servicesService.update(id, updateServiceDto, req.user.user);
+    return this.servicesService.update(id, updateServiceDto, req.user.user, { approvedReplay: req.approvedReplay === true });
   }
 
   @Delete(':id')
