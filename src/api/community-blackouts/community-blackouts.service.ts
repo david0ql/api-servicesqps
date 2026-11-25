@@ -30,6 +30,10 @@ export interface BlockedResult {
   message: string;
 }
 
+/** 400 por día/horario fuera de servicio. El controller de servicios la usa
+ *  para mandar la creación a aprobación del admin en vez de solo rechazarla. */
+export class ServiceBlockedByBlackoutException extends BadRequestException { }
+
 @Injectable()
 export class CommunityBlackoutsService {
   constructor(
@@ -141,11 +145,11 @@ export class CommunityBlackoutsService {
     return { blackout, message: buildBlockedMessage(community?.communityName, date, blackout) };
   }
 
-  /** Lanza 400 si el servicio cae en un horario fuera de servicio. */
+  /** Lanza 400 (ServiceBlockedByBlackoutException) si el servicio cae en un horario fuera de servicio. */
   async assertServiceAllowed(slot: ServiceSlot): Promise<void> {
     const blocked = await this.findBlocking(slot);
     if (blocked) {
-      throw new BadRequestException(blocked.message);
+      throw new ServiceBlockedByBlackoutException(blocked.message);
     }
   }
 

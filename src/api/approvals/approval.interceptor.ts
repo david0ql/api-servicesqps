@@ -61,6 +61,7 @@ export class ApprovalInterceptor implements NestInterceptor {
       if (!ok) {
         throw new ForbiddenException('Token de aprobación inválido, ya usado o no corresponde a esta petición.');
       }
+      req.approvedReplay = true;
       return next.handle();
     }
 

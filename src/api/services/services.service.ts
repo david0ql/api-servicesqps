@@ -24,6 +24,7 @@ import { EventoServicio, ServiceNotifierService } from './service-notifier.servi
 import { aplicaBloqueoDeHora, edicionInvolucraHora, HORA_BLOQUEADA, rolSujetoABloqueoDeHora } from './schedule-lock.util';
 import { CommunityBlackoutsService } from '../community-blackouts/community-blackouts.service';
 import { isAdminLike } from '../../constants/roles';
+import { canSkipBlackouts } from './blackout-bypass.util';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -526,6 +527,7 @@ export class ServicesService {
     createServiceDto: CreateServiceDto,
     currentUser?: UsersEntity,
     recurringAssignedByUserId?: string | null,
+    options: { approvedReplay?: boolean } = {},
   ) {
     // Managers/supervisores: el servicio se crea sin cleaner y en estado Created.
     createServiceDto = sanitizeStaffCreate(currentUser?.roleId, createServiceDto);
@@ -548,7 +550,11 @@ export class ServicesService {
 
     // Dias/horarios fuera de servicio de la comunidad (festividades): 400.
     // Se valida con la hora efectiva (ya forzada a 00:00 si aplica el bloqueo).
-    await this.blackouts.assertServiceAllowed({ ...createServiceDto, schedule: createServiceDtoCopy.schedule });
+    // El super admin puede crear igual (ej. apartamentos vacíos en Thanksgiving);
+    // a los demás el controller les manda la creación a aprobación del admin.
+    if (!canSkipBlackouts(currentUser, options.approvedReplay)) {
+      await this.blackouts.assertServiceAllowed({ ...createServiceDto, schedule: createServiceDtoCopy.schedule });
+    }
 
     const isAssigned = Boolean(
       createServiceDtoCopy.userId && createServiceDtoCopy.statusId === ServiceStatusId.Pending,
@@ -590,7 +596,7 @@ export class ServicesService {
     };
   }
 
-  async update(id: string, updateServiceDto: UpdateServiceDto, currentUser?: UsersEntity) {
+  async update(id: string, updateServiceDto: UpdateServiceDto, currentUser?: UsersEntity, options: { approvedReplay?: boolean } = {}) {
     const existingService = await this.servicesRepository.findOne({
       where: { id },
       select: [
@@ -654,10 +660,12 @@ export class ServicesService {
     );
 
     // Solo valida si se mueve el servicio (fecha, hora o comunidad), con la hora efectiva.
-    await this.blackouts.assertServiceUpdateAllowed(
-      id,
-      bloquearHora ? { ...updateServiceDto, schedule: HORA_BLOQUEADA } : updateServiceDto,
-    );
+    if (!canSkipBlackouts(currentUser, options.approvedReplay)) {
+      await this.blackouts.assertServiceUpdateAllowed(
+        id,
+        bloquearHora ? { ...updateServiceDto, schedule: HORA_BLOQUEADA } : updateServiceDto,
+      );
+    }
 
     const service = await this.servicesRepository.preload({
       id,

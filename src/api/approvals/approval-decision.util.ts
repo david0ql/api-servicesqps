@@ -22,10 +22,14 @@ export interface ApprovalDecisionInput {
 export const decideApprovalInterception = (input: ApprovalDecisionInput): ApprovalInterception => {
   if (!MUTATING_METHODS.has(String(input.method).toUpperCase())) return 'pass';
   if (input.skip) return 'pass';
-  if (!input.user?.id || !isAdminPapel(input.user.roleId)) return 'pass';
+  if (!input.user?.id) return 'pass';
 
+  // Re-ejecución aprobada: Admin Papel o un supervisor/manager cuya creación en
+  // día feriado quedó en aprobación. El token se valida y consume en el interceptor.
   const token = Array.isArray(input.approvalToken) ? input.approvalToken[0] : input.approvalToken;
   if (token && String(token).trim()) return 'replay';
+
+  if (!isAdminPapel(input.user.roleId)) return 'pass';
 
   return 'queue';
 };
