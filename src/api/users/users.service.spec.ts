@@ -131,3 +131,50 @@ describe('UsersService.findAllRoles', () => {
     expect((await service.findAllRoles()).map((r: any) => r.id)).toEqual(['1', '6']);
   });
 });
+
+describe('UsersService push token', () => {
+  const VALID = 'ExponentPushToken[abc123]';
+
+  const setup = () => {
+    const txRepo = { update: jest.fn(async () => ({ affected: 1 })) };
+    const manager = {
+      getRepository: jest.fn(() => txRepo),
+      transaction: jest.fn(async (cb: any) => cb(manager)),
+    };
+    const usersRepository = { manager, update: jest.fn(async () => ({ affected: 1 })) };
+    const service = new UsersService({} as any, usersRepository as any);
+    return { service, usersRepository, txRepo, manager };
+  };
+
+  it('quita el token a los demás usuarios y se lo asigna al usuario activo', async () => {
+    const { service, txRepo, manager } = setup();
+
+    await expect(service.assignPushToken('7', ` ${VALID} `)).resolves.toEqual({ ok: true });
+
+    expect(manager.transaction).toHaveBeenCalledTimes(1);
+    expect(txRepo.update).toHaveBeenCalledTimes(2);
+    const [clearWhere, clearSet] = (txRepo.update.mock.calls[0] as any[]);
+    expect(clearWhere.token).toBe(VALID);
+    // Not('7'): todos menos el propio usuario.
+    expect(clearWhere.id).toMatchObject({ _type: 'not', _value: '7' });
+    expect(clearSet).toEqual({ token: '' });
+    expect(txRepo.update.mock.calls[1]).toEqual([{ id: '7' }, { token: VALID }]);
+  });
+
+  it('rechaza tokens que no son de Expo', async () => {
+    const { service, manager } = setup();
+    await expect(service.assignPushToken('7', 'Error: permission denied')).rejects.toThrow('Invalid Expo push token');
+    await expect(service.assignPushToken('7', '')).rejects.toThrow();
+    expect(manager.transaction).not.toHaveBeenCalled();
+  });
+
+  it('al cerrar sesión solo limpia el token si coincide con el del dispositivo', async () => {
+    const { service, usersRepository } = setup();
+    await service.clearPushToken('7', VALID);
+    expect(usersRepository.update).toHaveBeenCalledWith({ id: '7', token: VALID }, { token: '' });
+
+    usersRepository.update.mockClear();
+    await service.clearPushToken('7', undefined);
+    expect(usersRepository.update).not.toHaveBeenCalled();
+  });
+});
