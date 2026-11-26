@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, HttpCode } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -16,6 +16,7 @@ import { SearchDto } from 'src/dto/search.dto';
 import { SkipApproval } from '../../decorators/skip-approval.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { RequirePasswordChangeByRoleDto } from './dto/require-password-change.dto';
+import { PushTokenDto } from './dto/push-token.dto';
 
 @ApiBearerAuth()
 @ApiTags('users')
@@ -59,6 +60,26 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   searchByWord(@Query() pageOptionsDto: UsersPageOptionsDto, @Body() searchDto: SearchDto): Promise<PageDto<UsersEntity>> {
     return this.usersService.searchByWord(searchDto, pageOptionsDto);
+  }
+
+  /**
+   * Registra el push token del dispositivo para la cuenta activa y lo quita de
+   * cualquier otro usuario. Solo afecta al propio usuario (sin aprobación).
+   */
+  @Post('me/push-token')
+  @SkipApproval()
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  assignPushToken(@GetUser() user: UsersEntity, @Body() dto: PushTokenDto) {
+    return this.usersService.assignPushToken(user.id, dto.token);
+  }
+
+  /** Cerrar sesión de una cuenta: deja de enviarle push a este dispositivo. */
+  @Delete('me/push-token')
+  @SkipApproval()
+  @UseGuards(AuthGuard('jwt'))
+  clearPushToken(@GetUser() user: UsersEntity, @Body() dto: PushTokenDto) {
+    return this.usersService.clearPushToken(user.id, dto.token);
   }
 
   @Get()

@@ -1,7 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, Not, Repository } from 'typeorm';
+import { Expo } from 'expo-server-sdk';
 import * as bcrypt from 'bcryptjs';
 
 import { CreateUserDto } from './dto/create-user.dto';
@@ -239,5 +240,38 @@ export class UsersService {
       .execute();
 
     return { roleId, roleName: role.name, affected: result.affected ?? 0 };
+  }
+
+  /**
+   * Asigna el push token del dispositivo al usuario autenticado (cuenta ACTIVA en
+   * la app) y se lo quita a cualquier otro usuario que lo tuviera: un dispositivo
+   * notifica a una sola cuenta a la vez. Con varias cuentas en el mismo teléfono
+   * la app llama a este endpoint al iniciar y al cambiar de cuenta, así que las
+   * cuentas inactivas del dispositivo dejan de recibir push hasta volver a activarse.
+   * El login (/auth) sigue guardando el token sin limpiar a nadie (compatibilidad
+   * con versiones viejas de la app).
+   */
+  async assignPushToken(userId: string, rawToken: string) {
+    const token = rawToken?.trim();
+    if (!token || !Expo.isExpoPushToken(token)) {
+      throw new BadRequestException('Invalid Expo push token');
+    }
+
+    await this.usersRepository.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(UsersEntity);
+      // users.token no admite NULL (default ''), por eso se limpia con ''.
+      await repo.update({ token, id: Not(userId) }, { token: '' });
+      await repo.update({ id: userId }, { token });
+    });
+
+    return { ok: true };
+  }
+
+  /** Quita el push token del usuario si coincide con el del dispositivo (cerrar sesión). */
+  async clearPushToken(userId: string, rawToken?: string) {
+    const token = rawToken?.trim();
+    if (!token) return { ok: true };
+    await this.usersRepository.update({ id: userId, token }, { token: '' });
+    return { ok: true };
   }
 }
