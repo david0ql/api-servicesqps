@@ -48,6 +48,14 @@ describe('CleanerZonesService', () => {
     await expect(service.assertEligible(null, 'c1', ENFORCED)).resolves.toBeUndefined();
   });
 
+  it('por lote: mapa comunidad -> ids elegibles', async () => {
+    communitiesRepository.find = jest.fn(async () => Object.values(communities));
+    const enforced = await service.findEligibleByCommunities(['c1', 'c2'], ENFORCED);
+    expect(enforced.eligibleByCommunity).toEqual({ c1: ['ana', 'qa'], c2: ['bea', 'qa'] });
+    const grace = await service.findEligibleByCommunities(['c1'], GRACE);
+    expect(grace.enforced).toBe(false);
+  });
+
   it('updateWorkZone normaliza, guarda y recalcula hasWorkZone', async () => {
     await service.updateWorkZone('caro', { communityIds: ['5', 5 as any], zones: null });
     expect(usersRepository.update).toHaveBeenCalledWith('caro', expect.objectContaining({

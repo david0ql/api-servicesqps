@@ -134,6 +134,37 @@ export class CleanerZonesService {
   }
 
   /**
+   * Version por lote para el balanceador del calendario: ids de cleaners/QA
+   * asignables por comunidad, con una sola consulta de usuarios.
+   */
+  async findEligibleByCommunities(communityIds: string[], now: Date = new Date()) {
+    const status = this.getStatus(now);
+    const ids = Array.from(new Set((communityIds ?? []).map(String).filter(Boolean))).slice(0, 500);
+    if (!ids.length) return { ...status, eligibleByCommunity: {} as Record<string, string[]> };
+
+    const [communities, users] = await Promise.all([
+      this.communitiesRepository.find({
+        where: { id: In(ids) },
+        select: ['id', 'companyId', 'latitude', 'longitude'],
+      }),
+      this.usersRepository.find({
+        where: { roleId: In([CLEANER_ROLE_ID, QA_ROLE_ID]), isActive: true },
+        select: ZONE_SELECT,
+      }),
+    ]);
+
+    const eligibleByCommunity: Record<string, string[]> = {};
+    for (const community of communities) {
+      eligibleByCommunity[String(community.id)] = users
+        .filter((user) => !status.enforced
+          || String(user.roleId) !== CLEANER_ROLE_ID
+          || isCleanerEligibleForCommunity(user, community))
+        .map((user) => String(user.id));
+    }
+    return { ...status, eligibleByCommunity };
+  }
+
+  /**
    * Valida una asignacion. No hace nada si no aplica (periodo de gracia, sin
    * comunidad, o el usuario no es cleaner). Lanza CleanerNotEligibleException (400).
    */

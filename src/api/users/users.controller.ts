@@ -15,7 +15,7 @@ import { UsersPageOptionsDto } from './dto/users-page-options.dto';
 import { SearchDto } from 'src/dto/search.dto';
 import { SkipApproval } from '../../decorators/skip-approval.decorator';
 import { CleanerZonesService } from './cleaner-zones.service';
-import { EligibleCleanersQueryDto, UpdateWorkZoneDto } from './dto/update-work-zone.dto';
+import { EligibleByCommunitiesQueryDto, EligibleCleanersQueryDto, UpdateWorkZoneDto } from './dto/update-work-zone.dto';
 
 @ApiBearerAuth()
 @ApiTags('users')
@@ -69,6 +69,13 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   eligibleCleaners(@Query() query: EligibleCleanersQueryDto) {
     return this.cleanerZonesService.findEligibleAssignees(query.communityId);
+  }
+
+  /** Lote para el balanceador del calendario: { eligibleByCommunity: { [communityId]: userId[] } }. */
+  @Get('eligible-cleaners/by-community')
+  @UseGuards(AuthGuard('jwt'))
+  eligibleCleanersByCommunity(@Query() query: EligibleByCommunitiesQueryDto) {
+    return this.cleanerZonesService.findEligibleByCommunities(query.communityIds);
   }
 
   @Get(':id/work-zone')

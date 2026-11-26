@@ -8,6 +8,7 @@ import { ServicesEntity } from 'src/entities/services.entity';
 import { UsersEntity } from 'src/entities/users.entity';
 import { ServicesModule } from '../services/services.module';
 import { CommunityBlackoutsModule } from '../community-blackouts/community-blackouts.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   controllers: [RecurringServicesController],
@@ -15,6 +16,7 @@ import { CommunityBlackoutsModule } from '../community-blackouts/community-black
   imports: [
     ServicesModule,
     CommunityBlackoutsModule,
+    UsersModule,
     TypeOrmModule.forFeature([RecurringServicesEntity, ServicesEntity, UsersEntity]),
   ],
 })

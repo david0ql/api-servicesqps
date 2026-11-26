@@ -18,7 +18,7 @@ import { ServicesService } from '../services/services.service';
 import { CommunityBlackoutsService } from '../community-blackouts/community-blackouts.service';
 import { isAdminLike } from 'src/constants/roles';
 import { ServiceStatusId } from 'src/constants/service-status.enum';
-import { CleanerNotEligibleException } from '../users/cleaner-zones.service';
+import { CleanerNotEligibleException, CleanerZonesService } from '../users/cleaner-zones.service';
 
 const ALLOWED_DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 const DAY_TO_ISO: Record<string, number> = {
@@ -44,6 +44,8 @@ export class RecurringServicesService {
     private readonly usersRepository: Repository<UsersEntity>,
     private readonly servicesService: ServicesService,
     private readonly blackouts: CommunityBlackoutsService,
+    // Opcional para los tests que construyen el servicio a mano.
+    private readonly cleanerZones?: CleanerZonesService,
   ) {}
 
   async create(createRecurringServiceDto: CreateRecurringServiceDto, currentUser?: UsersEntity) {
@@ -54,6 +56,7 @@ export class RecurringServicesService {
 
     if (createRecurringServiceDto.userId) {
       await this.assertAssignableUser(createRecurringServiceDto.userId);
+      await this.cleanerZones?.assertEligible(createRecurringServiceDto.userId, createRecurringServiceDto.communityId);
     }
 
     const startDate = this.getNextWeekStart().format('YYYY-MM-DD');
@@ -134,6 +137,12 @@ export class RecurringServicesService {
   async update(id: string, updateRecurringServiceDto: UpdateRecurringServiceDto, currentUser?: UsersEntity) {
     if (updateRecurringServiceDto.userId) {
       await this.assertAssignableUser(updateRecurringServiceDto.userId);
+      const current = await this.recurringServicesRepository.findOne({ where: { id }, select: ['id', 'userId', 'communityId'] });
+      const nextCommunityId = updateRecurringServiceDto.communityId ?? current?.communityId;
+      if (current && (String(updateRecurringServiceDto.userId) !== String(current.userId ?? '')
+        || String(nextCommunityId ?? '') !== String(current.communityId ?? ''))) {
+        await this.cleanerZones?.assertEligible(updateRecurringServiceDto.userId, nextCommunityId);
+      }
     }
 
     const normalizedDays = updateRecurringServiceDto.daysOfWeek

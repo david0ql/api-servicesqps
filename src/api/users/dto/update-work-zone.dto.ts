@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsArray, IsOptional, IsString } from 'class-validator';
 
@@ -29,7 +29,17 @@ export class UpdateWorkZoneDto {
 }
 
 export class EligibleCleanersQueryDto {
-  @ApiPropertyOptional({ description: 'Comunidad del servicio', example: '12' })
+  @ApiProperty({ description: 'Comunidad del servicio', example: '12' })
   @IsString()
   communityId: string;
+}
+
+export class EligibleByCommunitiesQueryDto {
+  @ApiPropertyOptional({ description: 'Ids de comunidades separados por coma', example: '12,15' })
+  @Transform(({ value }) => (Array.isArray(value) ? value : String(value ?? '').split(','))
+    .map((v: unknown) => String(v).trim())
+    .filter(Boolean))
+  @IsArray()
+  @IsString({ each: true })
+  communityIds: string[];
 }
