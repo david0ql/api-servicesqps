@@ -60,6 +60,7 @@ export class UsersService {
         'users.roleId',
         'users.isActive',
         'users.mustChangePassword',
+        'users.hasWorkZone',
         'users.createdAt',
         'role.id',
         'role.name',
@@ -76,6 +77,9 @@ export class UsersService {
     }
     if (pageOptionsDto.status === 'active' || pageOptionsDto.status === 'inactive') {
       searchedItemsByWord.andWhere('users.isActive = :isActive', { isActive: pageOptionsDto.status === 'active' });
+    }
+    if (pageOptionsDto.zone === 'none' || pageOptionsDto.zone === 'assigned') {
+      searchedItemsByWord.andWhere('users.hasWorkZone = :hasWorkZone', { hasWorkZone: pageOptionsDto.zone === 'assigned' });
     }
 
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount();
@@ -96,6 +100,9 @@ export class UsersService {
     if (pageOptionsDto.roleId) {
       queryBuilder.andWhere('user.roleId = :roleId', { roleId: pageOptionsDto.roleId });
     }
+    if (pageOptionsDto.zone === 'none' || pageOptionsDto.zone === 'assigned') {
+      queryBuilder.andWhere('user.hasWorkZone = :hasWorkZone', { hasWorkZone: pageOptionsDto.zone === 'assigned' });
+    }
     queryBuilder.orderBy('user.createdAt', pageOptionsDto.order);
     queryBuilder.skip(pageOptionsDto.skip);
     queryBuilder.take(pageOptionsDto.take);
@@ -107,6 +114,7 @@ export class UsersService {
       'user.roleId',
       'user.isActive',
       'user.mustChangePassword',
+      'user.hasWorkZone',
       'user.createdAt',
       'role.id',
       'role.name',
@@ -138,6 +146,7 @@ export class UsersService {
         'user.roleId',
         'user.isActive',
       'user.mustChangePassword',
+        'user.hasWorkZone',
         'user.createdAt',
         'role.id',
         'role.name',

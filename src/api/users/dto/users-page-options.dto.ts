@@ -28,4 +28,12 @@ export class UsersPageOptionsDto extends PageOptionsDto {
   @IsIn(['active', 'inactive', 'all'])
   @IsOptional()
   readonly status?: 'active' | 'inactive' | 'all';
+
+  @ApiPropertyOptional({
+    description: 'Zona de trabajo de cleaners: none = sin zona asignada, assigned = con zona.',
+    enum: ['none', 'assigned'],
+  })
+  @IsIn(['none', 'assigned'])
+  @IsOptional()
+  readonly zone?: 'none' | 'assigned';
 }
