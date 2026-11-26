@@ -14,12 +14,17 @@ import { UsersEntity } from 'src/entities/users.entity';
 import { UsersPageOptionsDto } from './dto/users-page-options.dto';
 import { SearchDto } from 'src/dto/search.dto';
 import { SkipApproval } from '../../decorators/skip-approval.decorator';
+import { CleanerZonesService } from './cleaner-zones.service';
+import { EligibleCleanersQueryDto, UpdateWorkZoneDto } from './dto/update-work-zone.dto';
 
 @ApiBearerAuth()
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly cleanerZonesService: CleanerZonesService,
+  ) { }
 
   @Post()
   @UseGuards(AuthGuard('jwt'))
@@ -47,6 +52,35 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   findAllRoles() {
     return this.usersService.findAllRoles();
+  }
+
+  /** Periodo de gracia de la zona de trabajo: { enforced, enforceFrom }. */
+  @Get('cleaner-zones/status')
+  @UseGuards(AuthGuard('jwt'))
+  cleanerZoneStatus() {
+    return this.cleanerZonesService.getStatus();
+  }
+
+  /**
+   * Cleaners/QA asignables a la comunidad. Con la zona en vigor solo vienen las
+   * cleaners elegibles (QA siempre); en el periodo de gracia vienen todas.
+   */
+  @Get('eligible-cleaners')
+  @UseGuards(AuthGuard('jwt'))
+  eligibleCleaners(@Query() query: EligibleCleanersQueryDto) {
+    return this.cleanerZonesService.findEligibleAssignees(query.communityId);
+  }
+
+  @Get(':id/work-zone')
+  @UseGuards(AuthGuard('jwt'))
+  getWorkZone(@Param('id') id: string) {
+    return this.cleanerZonesService.getWorkZone(id);
+  }
+
+  @Patch(':id/work-zone')
+  @UseGuards(AuthGuard('jwt'))
+  updateWorkZone(@Param('id') id: string, @Body() dto: UpdateWorkZoneDto) {
+    return this.cleanerZonesService.updateWorkZone(id, dto);
   }
 
   @Get(':id')

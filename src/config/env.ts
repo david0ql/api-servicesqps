@@ -29,6 +29,7 @@ interface EnvVars {
     ADMIN_PAPEL_PASSWORD: string
     ADMIN_PAPEL_NAME: string
     ADMIN_PAPEL_PHONE: string
+    CLEANER_ZONE_ENFORCE_FROM: string
 }
 
 const envSchema = joi
@@ -70,6 +71,9 @@ const envSchema = joi
     ADMIN_PAPEL_PASSWORD: joi.string().allow('').default(''),
     ADMIN_PAPEL_NAME: joi.string().empty('').default('Administrador Papel'),
     ADMIN_PAPEL_PHONE: joi.string().allow('').default(''),
+    // Zona de trabajo de las cleaners: hasta el dia anterior (fecha de Nueva York)
+    // aparecen todas en los selectores y no se valida; desde este dia solo las elegibles.
+    CLEANER_ZONE_ENFORCE_FROM: joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).empty('').default('2026-12-16'),
   })
   .unknown(true)
   .required();

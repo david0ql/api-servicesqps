@@ -17,6 +17,8 @@ import { UpdateRecurringServiceDto } from './dto/update-recurring-service.dto';
 import { ServicesService } from '../services/services.service';
 import { CommunityBlackoutsService } from '../community-blackouts/community-blackouts.service';
 import { isAdminLike } from 'src/constants/roles';
+import { ServiceStatusId } from 'src/constants/service-status.enum';
+import { CleanerNotEligibleException } from '../users/cleaner-zones.service';
 
 const ALLOWED_DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 const DAY_TO_ISO: Record<string, number> = {
@@ -253,9 +255,32 @@ export class RecurringServicesService {
         try {
           await this.servicesService.create(payload, undefined, recurring.assignedByUserId);
         } catch (error) {
+          if (error instanceof CleanerNotEligibleException && payload.userId) {
+            // Zona de trabajo en vigor y la cleaner fija de la recurrencia ya no
+            // cubre esa comunidad: el servicio se crea sin asignar (nunca se pierde).
+            this.logger.warn(`Recurring service ${recurring.id}: cleaner ${payload.userId} no elegible para ${formattedDate}, se crea sin asignar. ${error.message}`);
+            await this.createUnassigned(payload, recurring.id, formattedDate);
+            continue;
+          }
           this.logger.warn(`Failed to create recurring service ${recurring.id} for ${formattedDate}: ${(error as Error)?.message ?? error}`);
         }
       }
+    }
+  }
+
+  private async createUnassigned(payload: any, recurringId: string, date: string) {
+    const { userId: _userId, ...rest } = payload;
+    const unassigned = {
+      ...rest,
+      // Pending/Approved implican cleaner asignada; sin cleaner queda en Created (1).
+      statusId: rest.statusId === ServiceStatusId.Pending || rest.statusId === ServiceStatusId.Approved
+        ? ServiceStatusId.Created
+        : rest.statusId,
+    };
+    try {
+      await this.servicesService.create(unassigned, undefined, null);
+    } catch (error) {
+      this.logger.warn(`Failed to create unassigned recurring service ${recurringId} for ${date}: ${(error as Error)?.message ?? error}`);
     }
   }
 

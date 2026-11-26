@@ -10,6 +10,20 @@ import { ServicesEntity } from "./services.entity";
 import { RolesEntity } from "./roles.entity";
 import { ServiceChatMessagesEntity } from "./service_chat_messages.entity";
 import { ManyToOneNoAction, OneToManyNoAction } from "../decorators/relations.decorator";
+import type { ZoneFeatureCollection } from "../api/users/cleaner-zone.util";
+
+/** longtext <-> objeto JSON (la geocerca puede pasar de los 64KB de `text`). */
+const jsonLongtextTransformer = {
+  to: (value: unknown) => (value === null || value === undefined ? null : JSON.stringify(value)),
+  from: (value: string | null) => {
+    if (value === null || value === undefined || value === '') return null;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  },
+};
 
 @Index("role_id", ["roleId"], {})
 @Entity("users", { schema: "services_dbqa" })
@@ -53,6 +67,23 @@ export class UsersEntity {
 
   @Column("tinyint", { name: "is_active", width: 1, default: () => "1" })
   isActive: boolean;
+
+  // Zona de trabajo de la cleaner (rol 4). Se combinan: comunidades y/o
+  // companias concretas, y/o poligonos libres (GeoJSON FeatureCollection,
+  // coordenadas [lng, lat]). Ver api/users/cleaner-zone.util.ts.
+  @Column("simple-json", { name: "work_community_ids", nullable: true, select: false })
+  workCommunityIds: string[] | null;
+
+  @Column("simple-json", { name: "work_company_ids", nullable: true, select: false })
+  workCompanyIds: string[] | null;
+
+  @Column("longtext", { name: "work_zones", nullable: true, select: false, transformer: jsonLongtextTransformer })
+  workZones: ZoneFeatureCollection | null;
+
+  // Derivado de los tres campos de arriba (se recalcula al guardar la zona).
+  // Permite el filtro/badge "Sin zona" del listado sin leer los GeoJSON.
+  @Column("boolean", { name: "has_work_zone", default: false })
+  hasWorkZone: boolean;
 
   @OneToManyNoAction(() => CommunitiesEntity, (communitiesEntity) => communitiesEntity.supervisorUser)
   supervisedCommunities: CommunitiesEntity[];
