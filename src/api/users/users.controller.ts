@@ -14,6 +14,8 @@ import { UsersEntity } from 'src/entities/users.entity';
 import { UsersPageOptionsDto } from './dto/users-page-options.dto';
 import { SearchDto } from 'src/dto/search.dto';
 import { SkipApproval } from '../../decorators/skip-approval.decorator';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { RequirePasswordChangeByRoleDto } from './dto/require-password-change.dto';
 
 @ApiBearerAuth()
 @ApiTags('users')
@@ -25,6 +27,29 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
+  }
+
+  /**
+   * Pide cambio de clave a TODOS los usuarios activos de un rol (solo admin).
+   * Para obligar a todos los cleaners activos: body { "roleId": "4" }
+   * (en la web: Users > "Pedir cambio de clave a todo un rol").
+   */
+  @Post('require-password-change')
+  @UseGuards(AuthGuard('jwt'))
+  requirePasswordChangeForRole(@Body() dto: RequirePasswordChangeByRoleDto, @GetUser() actor: UsersEntity) {
+    return this.usersService.requirePasswordChangeForRole(dto.roleId, actor);
+  }
+
+  @Post(':id/require-password-change')
+  @UseGuards(AuthGuard('jwt'))
+  requirePasswordChange(@Param('id') id: string, @GetUser() actor: UsersEntity) {
+    return this.usersService.requirePasswordChange(id, actor);
+  }
+
+  @Delete(':id/require-password-change')
+  @UseGuards(AuthGuard('jwt'))
+  cancelPasswordChange(@Param('id') id: string, @GetUser() actor: UsersEntity) {
+    return this.usersService.cancelPasswordChange(id, actor);
   }
 
   // Lectura: no modifica datos.

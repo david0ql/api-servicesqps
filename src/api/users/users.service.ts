@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Brackets, Repository } from 'typeorm';
@@ -15,6 +15,9 @@ import { PageMetaDto } from '../../dto/page-meta.dto';
 
 /** Roles que ya no se usan. 5 = Cheo (retirado el 2026-11-22). */
 export const RETIRED_ROLE_IDS = new Set(['5']);
+
+/** Pueden pedir cambio de clave: super admin (1) y Admin Papel (9, pasa por aprobación). */
+export const PASSWORD_RESET_ADMIN_ROLE_IDS = new Set(['1', '9']);
 
 @Injectable()
 export class UsersService {
@@ -55,6 +58,7 @@ export class UsersService {
         'users.phoneNumber',
         'users.roleId',
         'users.isActive',
+        'users.mustChangePassword',
         'users.createdAt',
         'role.id',
         'role.name',
@@ -101,6 +105,7 @@ export class UsersService {
       'user.phoneNumber',
       'user.roleId',
       'user.isActive',
+      'user.mustChangePassword',
       'user.createdAt',
       'role.id',
       'role.name',
@@ -131,6 +136,7 @@ export class UsersService {
         'user.phoneNumber',
         'user.roleId',
         'user.isActive',
+      'user.mustChangePassword',
         'user.createdAt',
         'role.id',
         'role.name',
@@ -188,5 +194,50 @@ export class UsersService {
     // como operacion compatible, pero ahora solo los inactiva.
     user.isActive = false;
     return this.usersRepository.save(user);
+  }
+
+  private assertCanRequirePasswordChange(actor: UsersEntity | null | undefined) {
+    if (!actor || !PASSWORD_RESET_ADMIN_ROLE_IDS.has(String(actor.roleId))) {
+      throw new ForbiddenException('Solo administradores pueden pedir cambio de clave.');
+    }
+  }
+
+  /** Marca a un usuario para que cree una clave nueva en su próximo uso. */
+  async requirePasswordChange(id: string, actor: UsersEntity) {
+    this.assertCanRequirePasswordChange(actor);
+    const user = await this.usersRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException(`User with ID ${id} not found`);
+    await this.usersRepository.update(user.id, { mustChangePassword: true });
+    return { id: user.id, mustChangePassword: true };
+  }
+
+  /** Quita la marca (si se pidió por error). */
+  async cancelPasswordChange(id: string, actor: UsersEntity) {
+    this.assertCanRequirePasswordChange(actor);
+    const user = await this.usersRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException(`User with ID ${id} not found`);
+    await this.usersRepository.update(user.id, { mustChangePassword: false });
+    return { id: user.id, mustChangePassword: false };
+  }
+
+  /**
+   * Marca a todos los usuarios ACTIVOS de un rol. Ej. roleId '4' = todos los
+   * cleaners activos (pedido del cliente). El que pide no se marca a sí mismo.
+   */
+  async requirePasswordChangeForRole(roleId: string, actor: UsersEntity) {
+    this.assertCanRequirePasswordChange(actor);
+    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    if (!role) throw new NotFoundException(`Role with ID ${roleId} not found`);
+
+    const result = await this.usersRepository
+      .createQueryBuilder()
+      .update(UsersEntity)
+      .set({ mustChangePassword: true })
+      .where('role_id = :roleId', { roleId })
+      .andWhere('is_active = :isActive', { isActive: true })
+      .andWhere('id <> :actorId', { actorId: actor.id })
+      .execute();
+
+    return { roleId, roleName: role.name, affected: result.affected ?? 0 };
   }
 }
