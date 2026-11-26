@@ -77,3 +77,19 @@ export const shouldBlockForPasswordChange = (
   if (!user || !user.mustChangePassword) return false;
   return !isAllowedWhilePasswordChangePending(method, url, user.id);
 };
+
+/** Header que manda la app que ya trae la pantalla "Crea tu nueva clave". */
+export const PASSWORD_GATE_CLIENT_HEADER = 'x-qps-password-gate';
+
+/**
+ * Apps móviles viejas (sin la pantalla de cambio de clave) cierran sesión ante
+ * cualquier 403, y quedarían en un bucle de login. A ellas no se las bloquea:
+ * siguen funcionando hasta que la OTA se aplica (siguiente apertura) y entonces
+ * el gate de la app nueva exige el cambio. Web y app nueva sí se bloquean.
+ */
+export const isLegacyMobileClient = (headers: Record<string, any> | undefined | null): boolean => {
+  if (!headers) return false;
+  if (headers[PASSWORD_GATE_CLIENT_HEADER]) return false;
+  const ua = String(headers['user-agent'] ?? '');
+  return /ServicesQPS\/|okhttp|Expo|CFNetwork/i.test(ua);
+};

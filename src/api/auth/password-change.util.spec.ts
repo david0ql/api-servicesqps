@@ -1,4 +1,5 @@
 import {
+  isLegacyMobileClient,
   isAllowedWhilePasswordChangePending,
   normalizeRequestPath,
   passwordChangeRequiredBody,
@@ -80,5 +81,15 @@ describe('password-change.util', () => {
       code: 'PASSWORD_CHANGE_REQUIRED',
       message: 'Debes cambiar tu clave. Actualiza la app si no ves la opción.',
     }));
+  });
+});
+
+describe('isLegacyMobileClient', () => {
+  it('app vieja (sin header) no se bloquea; app nueva y web sí', () => {
+    expect(isLegacyMobileClient({ 'user-agent': 'ServicesQPS/69 CFNetwork/3860.700.1 Darwin/25.6.0' })).toBe(true);
+    expect(isLegacyMobileClient({ 'user-agent': 'okhttp/4.12.0' })).toBe(true);
+    expect(isLegacyMobileClient({ 'user-agent': 'okhttp/4.12.0', 'x-qps-password-gate': '1' })).toBe(false);
+    expect(isLegacyMobileClient({ 'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/131' })).toBe(false);
+    expect(isLegacyMobileClient(undefined)).toBe(false);
   });
 });
