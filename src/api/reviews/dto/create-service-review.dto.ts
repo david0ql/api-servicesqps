@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsArray, ValidateNested, IsBoolean, IsNumber, IsOptional, IsObject } from 'class-validator';
+import { IsString, IsArray, ValidateNested, IsBoolean, IsNumber, IsOptional, IsObject, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
+
+import { MAX_REFRESH_PHOTOS_PER_REVIEW } from '../refresh-photos.util';
 
 export class ReviewItemValueDto {
   @ApiProperty({ description: 'Review item ID' })
@@ -17,15 +19,27 @@ export class CreateServiceReviewDto {
   @IsString()
   serviceId: string;
 
-  @ApiProperty({ description: 'Message' })
+  @ApiPropertyOptional({ description: 'Message' })
+  @IsOptional()
   @IsString()
   message?: string;
 
-  @ApiProperty({ description: 'Array of review items with values', type: [ReviewItemValueDto] })
+  // Checklist viejo: se mantiene para clientes que aun no actualizan.
+  @ApiPropertyOptional({ description: 'Legacy checklist (deprecated)', type: [ReviewItemValueDto] })
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ReviewItemValueDto)
-  reviewItems: ReviewItemValueDto[];
+  reviewItems?: ReviewItemValueDto[];
+
+  // Refresh por fotos: photoPath devueltos por POST /reviews/photos/upload.
+  // Con 1 o mas fotos la revision es un refresh; sin fotos se aprueba.
+  @ApiPropertyOptional({ description: 'photoPath of refresh photos (POST /reviews/photos/upload)', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_REFRESH_PHOTOS_PER_REVIEW)
+  @IsString({ each: true })
+  refreshPhotos?: string[];
 
   // QA finish location
   @ApiPropertyOptional() @IsOptional() @IsNumber() latitude?: number;

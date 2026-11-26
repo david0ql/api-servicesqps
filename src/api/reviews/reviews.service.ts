@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import moment from 'moment-timezone';
 
 import { ReviewItemsEntity } from '../../entities/review_items.entity';
@@ -13,6 +13,16 @@ import { TrackServiceLocationDto } from '../services/dto/track-service-location.
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
 import { ServiceNotifierService } from '../services/service-notifier.service';
 import { buildRefreshResetUpdate, shouldResetForRefresh } from '../services/service-refresh.util';
+import { ServiceRefreshPhotosEntity } from '../../entities/service_refresh_photos.entity';
+import envVars from '../../config/env';
+import {
+  buildRefreshPhotoUrl,
+  canViewRefreshPhotos,
+  groupRefreshPhotosByRound,
+  isValidRefreshPhotoPath,
+  normalizeRefreshPhotos,
+  RefreshPhotosRound,
+} from './refresh-photos.util';
 
 @Injectable()
 export class ReviewsService {
@@ -26,7 +36,42 @@ export class ReviewsService {
     @InjectRepository(UsersEntity)
     private readonly usersRepository: Repository<UsersEntity>,
     private readonly notifier: ServiceNotifierService,
+    @InjectRepository(ServiceRefreshPhotosEntity)
+    private readonly refreshPhotosRepository: Repository<ServiceRefreshPhotosEntity>,
   ) {}
+
+  /** URL publica (absoluta si REPORTS_PUBLIC_BASE_URL esta configurada). */
+  buildPhotoUrl(photoPath: string): string {
+    return buildRefreshPhotoUrl(photoPath, envVars?.REPORTS_PUBLIC_BASE_URL);
+  }
+
+  async getRefreshPhotos(serviceId: string, currentUser: UsersEntity): Promise<{ rounds: RefreshPhotosRound[] }> {
+    const service = await this.servicesRepository.findOne({
+      where: { id: serviceId },
+      select: ['id', 'userId'],
+    });
+
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${serviceId} not found`);
+    }
+
+    if (!canViewRefreshPhotos(currentUser, service)) {
+      throw new ForbiddenException('You are not allowed to view the refresh photos of this service.');
+    }
+
+    const rows = await this.refreshPhotosRepository.find({
+      where: { serviceId },
+      order: { round: 'DESC', id: 'ASC' },
+    });
+
+    const userIds = Array.from(new Set(rows.map(row => row.createdByUserId).filter((id): id is string => !!id)));
+    const users = userIds.length
+      ? await this.usersRepository.find({ where: { id: In(userIds) }, select: ['id', 'name'] })
+      : [];
+    const usersById = new Map(users.map(user => [String(user.id), { id: String(user.id), name: user.name }]));
+
+    return { rounds: groupRefreshPhotosByRound(rows, usersById, envVars?.REPORTS_PUBLIC_BASE_URL) };
+  }
 
   async getReviewItemsWithClasses(): Promise<ReviewItemsGroupedByClassDto[]> {
     const queryBuilder = this.reviewItemsRepository.createQueryBuilder('reviewItems')
@@ -111,10 +156,16 @@ export class ReviewsService {
       throw new NotFoundException(`Service with ID ${createServiceReviewDto.serviceId} not found`);
     }
 
-    // Process each review item (insert or update)
+    const refreshPhotos = normalizeRefreshPhotos(createServiceReviewDto.refreshPhotos);
+    const invalidPhoto = refreshPhotos.find(photo => !isValidRefreshPhotoPath(photo));
+    if (invalidPhoto) {
+      throw new BadRequestException(`Invalid refresh photo path: ${invalidPhoto}`);
+    }
+
+    // Checklist viejo (opcional). Clientes nuevos mandan solo refreshPhotos.
     const savedReviews = [];
 
-    for (const item of createServiceReviewDto.reviewItems) {
+    for (const item of createServiceReviewDto.reviewItems ?? []) {
       const existingReview = await this.reviewsByServiceRepository.findOne({
         where: {
           serviceId: createServiceReviewDto.serviceId,
@@ -135,13 +186,36 @@ export class ReviewsService {
       }
     }
 
-    const hasFailedItems = savedReviews.some(review => review.value !== 0);
+    // Ojo: en el checklist viejo value=1 (switch prendido) significa item
+    // fallido. Con fotos el refresh lo deciden las fotos.
+    const hasRefreshPhotos = refreshPhotos.length > 0;
+    const hasFailedItems = hasRefreshPhotos || savedReviews.some(review => review.value !== 0);
 
     // Build service update with QA finish location if provided
     const serviceUpdate: Partial<ServicesEntity> = {
       statusId: hasFailedItems ? '3' : '6',
       qaFlagged: false,
+      refreshPhotosCount: refreshPhotos.length,
     };
+
+    if (hasRefreshPhotos) {
+      const last = await this.refreshPhotosRepository.findOne({
+        where: { serviceId: createServiceReviewDto.serviceId },
+        order: { round: 'DESC' },
+        select: ['id', 'round'],
+      });
+      const round = (Number(last?.round) || 0) + 1;
+      const message = createServiceReviewDto.message?.trim() || null;
+      await this.refreshPhotosRepository.save(
+        refreshPhotos.map(photoPath => this.refreshPhotosRepository.create({
+          serviceId: createServiceReviewDto.serviceId,
+          round,
+          photoPath,
+          createdByUserId: currentUser?.id ?? null,
+          message,
+        })),
+      );
+    }
 
     // Refresh: se guarda el intento anterior y se limpian inicio/fin para que
     // la cleaner pueda volver a iniciar y finalizar el servicio.
