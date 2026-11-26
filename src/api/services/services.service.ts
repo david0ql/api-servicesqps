@@ -25,6 +25,7 @@ import { aplicaBloqueoDeHora, edicionInvolucraHora, HORA_BLOQUEADA, rolSujetoABl
 import { CommunityBlackoutsService } from '../community-blackouts/community-blackouts.service';
 import { isAdminLike } from '../../constants/roles';
 import { canSkipBlackouts } from './blackout-bypass.util';
+import { CleanerZonesService } from '../users/cleaner-zones.service';
 
 export interface ServicesDashboard extends ServicesEntity {
   totalCleaner: number;
@@ -57,6 +58,9 @@ export class ServicesService {
     private readonly pushNotificationsService: PushNotificationsService,
     private readonly notifier: ServiceNotifierService,
     private readonly blackouts: CommunityBlackoutsService,
+    // Zona de trabajo de las cleaners. Opcional para no romper los tests que
+    // construyen el servicio a mano; en Nest siempre se inyecta.
+    private readonly cleanerZones?: CleanerZonesService,
   ) { }
 
   private addActiveRecurringFilter(queryBuilder: any) {
@@ -535,6 +539,8 @@ export class ServicesService {
 
     if (createServiceDto.userId) {
       await this.assertAssignableUser(createServiceDto.userId);
+      // Desde CLEANER_ZONE_ENFORCE_FROM: 400 si la comunidad no esta en su zona.
+      await this.cleanerZones?.assertEligible(createServiceDto.userId, createServiceDtoCopy.communityId);
     }
     
     // Log detallado del DTO
@@ -635,6 +641,14 @@ export class ServicesService {
 
     if (updateServiceDto.userId) {
       await this.assertAssignableUser(updateServiceDto.userId);
+      // Solo se valida si cambia el cleaner o la comunidad: editar otros campos
+      // de un servicio ya asignado no debe bloquearse.
+      const nextCommunityId = updateServiceDto.communityId ?? existingService.communityId;
+      const changesAssignment = String(updateServiceDto.userId) !== String(existingService.userId ?? '')
+        || String(nextCommunityId ?? '') !== String(existingService.communityId ?? '');
+      if (changesAssignment) {
+        await this.cleanerZones?.assertEligible(updateServiceDto.userId, nextCommunityId);
+      }
     }
 
     const nextUserId = typeof updateServiceDto.userId !== 'undefined'

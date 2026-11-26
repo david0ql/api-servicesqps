@@ -1,10 +1,11 @@
-import { HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpStatus, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 
 import { UserDto } from './dto/user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { UsersEntity } from '../../entities/users.entity';
 import { PushNotificationsService } from '../../push-notification/push-notification.service';
 
@@ -53,5 +54,40 @@ export class AuthService {
       message: user,
       error: 'Ok',
     };
+  }
+
+  /** Estado liviano del usuario de la sesión (lo consulta la app al abrir). */
+  me(user: UsersEntity) {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      roleId: user.roleId,
+      mustChangePassword: !!user.mustChangePassword,
+    };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const { currentPassword, newPassword } = dto;
+
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user || !user.isActive) throw new UnauthorizedException('User not found');
+
+    const currentOk = await bcrypt.compare(currentPassword, user.password);
+    if (!currentOk) throw new BadRequestException('La clave actual no es correcta.');
+
+    if (newPassword === currentPassword) {
+      throw new BadRequestException('La clave nueva debe ser distinta a la actual.');
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    const passwordChangedAt = new Date();
+    await this.usersRepository.update(user.id, {
+      password: hashed,
+      mustChangePassword: false,
+      passwordChangedAt,
+    });
+
+    return { ok: true, mustChangePassword: false, passwordChangedAt };
   }
 }

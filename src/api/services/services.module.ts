@@ -12,6 +12,7 @@ import { CommunitiesEntity } from '../../entities/communities.entity';
 import { ServiceAssignmentReminderService } from './service-assignment-reminder.service';
 import { CommunityBlackoutsModule } from '../community-blackouts/community-blackouts.module';
 import { ApprovalsModule } from '../approvals/approvals.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   controllers: [ServicesController],
@@ -22,6 +23,7 @@ import { ApprovalsModule } from '../approvals/approvals.module';
     NotificationsModule,
     CommunityBlackoutsModule,
     ApprovalsModule,
+    UsersModule,
   ],
 
 })

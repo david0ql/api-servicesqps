@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, Not, Repository } from 'typeorm';
+import { Expo } from 'expo-server-sdk';
 import * as bcrypt from 'bcryptjs';
 
 import { CreateUserDto } from './dto/create-user.dto';
@@ -15,6 +16,9 @@ import { PageMetaDto } from '../../dto/page-meta.dto';
 
 /** Roles que ya no se usan. 5 = Cheo (retirado el 2026-11-22). */
 export const RETIRED_ROLE_IDS = new Set(['5']);
+
+/** Pueden pedir cambio de clave: super admin (1) y Admin Papel (9, pasa por aprobación). */
+export const PASSWORD_RESET_ADMIN_ROLE_IDS = new Set(['1', '9']);
 
 @Injectable()
 export class UsersService {
@@ -55,6 +59,8 @@ export class UsersService {
         'users.phoneNumber',
         'users.roleId',
         'users.isActive',
+        'users.mustChangePassword',
+        'users.hasWorkZone',
         'users.createdAt',
         'role.id',
         'role.name',
@@ -71,6 +77,9 @@ export class UsersService {
     }
     if (pageOptionsDto.status === 'active' || pageOptionsDto.status === 'inactive') {
       searchedItemsByWord.andWhere('users.isActive = :isActive', { isActive: pageOptionsDto.status === 'active' });
+    }
+    if (pageOptionsDto.zone === 'none' || pageOptionsDto.zone === 'assigned') {
+      searchedItemsByWord.andWhere('users.hasWorkZone = :hasWorkZone', { hasWorkZone: pageOptionsDto.zone === 'assigned' });
     }
 
     const [items, totalCount] = await searchedItemsByWord.getManyAndCount();
@@ -91,6 +100,9 @@ export class UsersService {
     if (pageOptionsDto.roleId) {
       queryBuilder.andWhere('user.roleId = :roleId', { roleId: pageOptionsDto.roleId });
     }
+    if (pageOptionsDto.zone === 'none' || pageOptionsDto.zone === 'assigned') {
+      queryBuilder.andWhere('user.hasWorkZone = :hasWorkZone', { hasWorkZone: pageOptionsDto.zone === 'assigned' });
+    }
     queryBuilder.orderBy('user.createdAt', pageOptionsDto.order);
     queryBuilder.skip(pageOptionsDto.skip);
     queryBuilder.take(pageOptionsDto.take);
@@ -101,6 +113,8 @@ export class UsersService {
       'user.phoneNumber',
       'user.roleId',
       'user.isActive',
+      'user.mustChangePassword',
+      'user.hasWorkZone',
       'user.createdAt',
       'role.id',
       'role.name',
@@ -131,6 +145,8 @@ export class UsersService {
         'user.phoneNumber',
         'user.roleId',
         'user.isActive',
+      'user.mustChangePassword',
+        'user.hasWorkZone',
         'user.createdAt',
         'role.id',
         'role.name',
@@ -188,5 +204,83 @@ export class UsersService {
     // como operacion compatible, pero ahora solo los inactiva.
     user.isActive = false;
     return this.usersRepository.save(user);
+  }
+
+  private assertCanRequirePasswordChange(actor: UsersEntity | null | undefined) {
+    if (!actor || !PASSWORD_RESET_ADMIN_ROLE_IDS.has(String(actor.roleId))) {
+      throw new ForbiddenException('Solo administradores pueden pedir cambio de clave.');
+    }
+  }
+
+  /** Marca a un usuario para que cree una clave nueva en su próximo uso. */
+  async requirePasswordChange(id: string, actor: UsersEntity) {
+    this.assertCanRequirePasswordChange(actor);
+    const user = await this.usersRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException(`User with ID ${id} not found`);
+    await this.usersRepository.update(user.id, { mustChangePassword: true });
+    return { id: user.id, mustChangePassword: true };
+  }
+
+  /** Quita la marca (si se pidió por error). */
+  async cancelPasswordChange(id: string, actor: UsersEntity) {
+    this.assertCanRequirePasswordChange(actor);
+    const user = await this.usersRepository.findOne({ where: { id } });
+    if (!user) throw new NotFoundException(`User with ID ${id} not found`);
+    await this.usersRepository.update(user.id, { mustChangePassword: false });
+    return { id: user.id, mustChangePassword: false };
+  }
+
+  /**
+   * Marca a todos los usuarios ACTIVOS de un rol. Ej. roleId '4' = todos los
+   * cleaners activos (pedido del cliente). El que pide no se marca a sí mismo.
+   */
+  async requirePasswordChangeForRole(roleId: string, actor: UsersEntity) {
+    this.assertCanRequirePasswordChange(actor);
+    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    if (!role) throw new NotFoundException(`Role with ID ${roleId} not found`);
+
+    const result = await this.usersRepository
+      .createQueryBuilder()
+      .update(UsersEntity)
+      .set({ mustChangePassword: true })
+      .where('role_id = :roleId', { roleId })
+      .andWhere('is_active = :isActive', { isActive: true })
+      .andWhere('id <> :actorId', { actorId: actor.id })
+      .execute();
+
+    return { roleId, roleName: role.name, affected: result.affected ?? 0 };
+  }
+
+  /**
+   * Asigna el push token del dispositivo al usuario autenticado (cuenta ACTIVA en
+   * la app) y se lo quita a cualquier otro usuario que lo tuviera: un dispositivo
+   * notifica a una sola cuenta a la vez. Con varias cuentas en el mismo teléfono
+   * la app llama a este endpoint al iniciar y al cambiar de cuenta, así que las
+   * cuentas inactivas del dispositivo dejan de recibir push hasta volver a activarse.
+   * El login (/auth) sigue guardando el token sin limpiar a nadie (compatibilidad
+   * con versiones viejas de la app).
+   */
+  async assignPushToken(userId: string, rawToken: string) {
+    const token = rawToken?.trim();
+    if (!token || !Expo.isExpoPushToken(token)) {
+      throw new BadRequestException('Invalid Expo push token');
+    }
+
+    await this.usersRepository.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(UsersEntity);
+      // users.token no admite NULL (default ''), por eso se limpia con ''.
+      await repo.update({ token, id: Not(userId) }, { token: '' });
+      await repo.update({ id: userId }, { token });
+    });
+
+    return { ok: true };
+  }
+
+  /** Quita el push token del usuario si coincide con el del dispositivo (cerrar sesión). */
+  async clearPushToken(userId: string, rawToken?: string) {
+    const token = rawToken?.trim();
+    if (!token) return { ok: true };
+    await this.usersRepository.update({ id: userId, token }, { token: '' });
+    return { ok: true };
   }
 }

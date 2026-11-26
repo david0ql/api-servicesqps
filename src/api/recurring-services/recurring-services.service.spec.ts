@@ -59,3 +59,43 @@ describe('RecurringServicesService.generateWeeklyServices con dias fuera de serv
     expect(servicesService.create).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('RecurringServicesService.generateWeeklyServices con zona de trabajo en vigor', () => {
+  const { RecurringServicesService } = require('./recurring-services.service');
+  const { CleanerNotEligibleException } = require('../users/cleaner-zones.service');
+
+  const recurringRepository: any = { find: jest.fn() };
+  const servicesRepository: any = { findOne: jest.fn() };
+  const servicesService: any = { create: jest.fn() };
+  const blackouts: any = { findBlocking: jest.fn() };
+  const service = new RecurringServicesService(recurringRepository, servicesRepository, {}, servicesService, blackouts);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers().setSystemTime(new Date(2026, 11, 20, 18, 0, 0)); // domingo 20/12/2026
+    recurringRepository.find.mockResolvedValue([{
+      id: '8', communityId: '5', typeId: '1', statusId: '2', schedule: '09:00:00', userId: '44',
+      startDate: '2026-11-01', daysOfWeek: ['mon'], extraIds: [], isActive: true, assignedByUserId: '1',
+    }]);
+    servicesRepository.findOne.mockResolvedValue(null);
+    blackouts.findBlocking.mockResolvedValue(null);
+  });
+
+  afterEach(() => jest.useRealTimers());
+
+  it('si la cleaner no es elegible crea el servicio sin asignar (Created) y no lanza', async () => {
+    servicesService.create
+      .mockRejectedValueOnce(new CleanerNotEligibleException('no elegible'))
+      .mockResolvedValueOnce({});
+    jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+
+    await expect(service.generateWeeklyServices()).resolves.toBeUndefined();
+
+    expect(servicesService.create).toHaveBeenCalledTimes(2);
+    const [retry, , assignedBy] = servicesService.create.mock.calls[1];
+    expect(retry.userId).toBeUndefined();
+    expect(retry.statusId).toBe('1');
+    expect(retry.date).toBe('2026-12-21');
+    expect(assignedBy).toBeNull();
+  });
+});

@@ -142,6 +142,12 @@ export class ServicesEntity {
   @Column("text", { name: "refresh_history", nullable: true })
   refreshHistory: string | null;
 
+  // Cantidad de fotos de la ultima ronda de refresh (QA por fotos). Se
+  // guarda aca para que las listas de la app muestren el badge sin pedir
+  // las fotos. 0 = la ultima revision no mando fotos.
+  @Column("int", { name: "refresh_photos_count", default: () => "0" })
+  refreshPhotosCount: number;
+
   @Column("bigint", { name: "qa_user_id", unsigned: true, nullable: true })
   qaUserId: string | null;
 
