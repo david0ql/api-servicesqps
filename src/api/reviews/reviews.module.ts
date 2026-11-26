@@ -7,6 +7,7 @@ import { ReviewItemsEntity } from '../../entities/review_items.entity';
 import { ReviewsByServiceEntity } from '../../entities/reviews_by_service.entity';
 import { ServicesEntity } from '../../entities/services.entity';
 import { UsersEntity } from '../../entities/users.entity';
+import { ServiceRefreshPhotosEntity } from '../../entities/service_refresh_photos.entity';
 import { NotificationsModule } from '../../push-notification/push-notification.module';
 import { ServicesModule } from '../services/services.module';
 
@@ -14,7 +15,7 @@ import { ServicesModule } from '../services/services.module';
   controllers: [ReviewsController],
   providers: [ReviewsService],
   imports: [
-    TypeOrmModule.forFeature([ReviewItemsEntity, ReviewsByServiceEntity, ServicesEntity, UsersEntity]),
+    TypeOrmModule.forFeature([ReviewItemsEntity, ReviewsByServiceEntity, ServicesEntity, UsersEntity, ServiceRefreshPhotosEntity]),
     NotificationsModule,
     ServicesModule,
   ],
