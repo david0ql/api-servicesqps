@@ -6,7 +6,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Repository } from 'typeorm';
 
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
-import { passwordChangeRequiredBody, shouldBlockForPasswordChange } from '../password-change.util';
+import { isLegacyMobileClient, passwordChangeRequiredBody, shouldBlockForPasswordChange } from '../password-change.util';
 
 import envVars from 'src/config/env';
 import { UsersEntity } from 'src/entities/users.entity';
@@ -41,7 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
         // Cambio de clave obligatorio: solo deja pasar las rutas de la allowlist.
         // 403 (no 401) para que el cliente no lo confunda con sesión vencida.
-        if (shouldBlockForPasswordChange(user, req?.method, req?.originalUrl ?? req?.url)) {
+        if (shouldBlockForPasswordChange(user, req?.method, req?.originalUrl ?? req?.url) && !isLegacyMobileClient(req?.headers)) {
             throw new ForbiddenException(passwordChangeRequiredBody());
         }
 
