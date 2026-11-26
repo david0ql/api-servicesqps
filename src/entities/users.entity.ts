@@ -54,6 +54,14 @@ export class UsersEntity {
   @Column("tinyint", { name: "is_active", width: 1, default: () => "1" })
   isActive: boolean;
 
+  /** Lo activa un admin: el usuario debe crear una clave nueva antes de seguir
+   *  usando la app/web (ver password-change.util.ts). */
+  @Column("boolean", { name: "must_change_password", default: false })
+  mustChangePassword: boolean;
+
+  @Column("timestamp", { name: "password_changed_at", nullable: true })
+  passwordChangedAt: Date | null;
+
   @OneToManyNoAction(() => CommunitiesEntity, (communitiesEntity) => communitiesEntity.supervisorUser)
   supervisedCommunities: CommunitiesEntity[];
 
