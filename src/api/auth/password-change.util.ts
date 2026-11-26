@@ -38,6 +38,9 @@ const ALLOWLIST: AllowRule[] = [
   { method: 'POST', pattern: /^\/auth\/change-password$/ },
   // Perfil propio: la app y la web lo piden justo después del login.
   { method: 'GET', pattern: /^\/users\/(\d+)$/, selfOnly: true },
+  // Push token del dispositivo (multi-cuenta): se registra al abrir la app.
+  { method: 'POST', pattern: /^\/users\/me\/push-token$/ },
+  { method: 'DELETE', pattern: /^\/users\/me\/push-token$/ },
 ];
 
 /** Quita query string, barras finales y normaliza a minúsculas. */
